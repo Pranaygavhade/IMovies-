@@ -1,0 +1,308 @@
+{
+  "info": {
+    "_postman_id": "a9c7b892-8db4-469a-9e12-b13c77e20341",
+    "name": "IMovies API",
+    "description": "Comprehensive Postman collection for IMovies - Movie ticket booking made simple",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:5000/api/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Cooper\",\n  \"email\": \"alice@example.com\",\n  \"password\": \"User@123\",\n  \"phone\": \"+1 555-0104\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.token) {",
+                  "  pm.collectionVariables.set('authToken', json.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"User@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.token) {",
+                  "  pm.collectionVariables.set('adminToken', json.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@imovies.com\",\n  \"password\": \"Admin@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/auth/profile",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Johnathan Doe\",\n  \"phone\": \"+1 555-9999\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Movies",
+      "item": [
+        {
+          "name": "Get Movies (Search & Filters)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/movies?search=&genre=&city=&status=now_showing&page=1&limit=12",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies"],
+              "query": [
+                { "key": "search", "value": "" },
+                { "key": "genre", "value": "" },
+                { "key": "city", "value": "" },
+                { "key": "status", "value": "now_showing" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "12" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Movie Details",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/movies/:id"
+          }
+        },
+        {
+          "name": "Create Movie (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/movies",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tron: Ares\",\n  \"description\": \"A highly sophisticated Program called Ares is sent from the digital world into the real world on a dangerous mission.\",\n  \"genre\": [\"Sci-Fi\", \"Action\"],\n  \"language\": \"English\",\n  \"duration\": 135,\n  \"rating\": 8.1,\n  \"releaseDate\": \"2025-10-10\",\n  \"poster\": \"https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80\",\n  \"certificate\": \"UA\",\n  \"status\": \"upcoming\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Theatres",
+      "item": [
+        {
+          "name": "Get All Theatres",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/theatres"
+          }
+        },
+        {
+          "name": "Get Distinct Cities",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/theatres/cities"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shows & Seats",
+      "item": [
+        {
+          "name": "Get Shows (by Movie & Date)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/shows?movie=&date=&city="
+          }
+        },
+        {
+          "name": "Get Show with Real-time Seat Map",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/shows/:id"
+          }
+        },
+        {
+          "name": "Lock Seats (5-minute timer)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/shows/:id/lock-seats",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seatNumbers\": [\"C3\", \"C4\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Release Seats",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/shows/:id/release-seats",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seatNumbers\": [\"C3\", \"C4\"]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings & Payments",
+      "item": [
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/bookings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showId\": \":showId\",\n  \"seatNumbers\": [\"C3\", \"C4\"],\n  \"paymentMethod\": \"card\",\n  \"paymentDetails\": {\n    \"cardNumber\": \"4242424242424242\",\n    \"expMonth\": \"12\",\n    \"expYear\": \"28\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/bookings/my",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/bookings/:id/cancel",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Admin Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/stats",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/users",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Get All Bookings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/bookings",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}
