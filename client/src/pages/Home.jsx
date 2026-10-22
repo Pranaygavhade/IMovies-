@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   X,
   Compass,
+  Film,
 } from 'lucide-react';
 import { fetchMovies, setSelectedCity } from '../redux/slices/movieSlice';
 import { MovieCardSkeleton } from '../components/common/Loader';

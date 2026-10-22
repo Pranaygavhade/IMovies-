@@ -30,6 +30,7 @@ import {
   detectCityByIp,
 } from '../../redux/slices/movieSlice';
 import { fetchNotifications, markNotificationAsRead } from '../../redux/slices/notificationSlice';
+import api from '../../api/axios';
 
 const Navbar = () => {
   const navigate = useNavigate();
