@@ -8,7 +8,8 @@ const bookingSeatSchema = new mongoose.Schema({
   },
   seatNumber: { type: String, required: true },
   row: { type: String, required: true },
-  category: { type: String, required: true },
+  tier: { type: String, enum: ['lower', 'middle', 'balcony'], default: 'middle' },
+  category: { type: String, default: 'middle' },
   price: { type: Number, required: true },
 });
 
@@ -32,25 +33,26 @@ const bookingSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    status: {
-      type: String,
-      enum: ['pending', 'confirmed', 'cancelled'],
-      default: 'pending',
-      index: true,
-    },
     bookingCode: {
       type: String,
       required: true,
       unique: true,
       trim: true,
     },
-    qrData: {
+    status: {
       type: String,
-      default: '',
+      enum: ['pending', 'confirmed', 'cancelled', 'expired'],
+      default: 'pending',
+      index: true,
     },
     payment: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Payment',
+      default: null,
+    },
+    qrCode: {
+      type: String,
+      default: '',
     },
     cancelledAt: {
       type: Date,
@@ -61,9 +63,22 @@ const bookingSchema = new mongoose.Schema(
       enum: ['none', 'full', 'partial', 'ineligible'],
       default: 'none',
     },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
+
+// Virtual for qrData
+bookingSchema.virtual('qrData').get(function () {
+  return this.qrCode;
+});
 
 bookingSchema.index({ user: 1, createdAt: -1 });
 

@@ -29,7 +29,7 @@ exports.getMovies = async (req, res, next) => {
 
     // Genre filter
     if (genre && genre !== 'All') {
-      query.genre = { $in: [genre] };
+      query.$or = [{ genres: { $in: [genre] } }, { genre: { $in: [genre] } }];
     }
 
     // Language filter
@@ -42,7 +42,7 @@ exports.getMovies = async (req, res, next) => {
       query.$or = [
         { title: { $regex: search.trim(), $options: 'i' } },
         { director: { $regex: search.trim(), $options: 'i' } },
-        { genre: { $regex: search.trim(), $options: 'i' } },
+        { genres: { $regex: search.trim(), $options: 'i' } },
         { language: { $regex: search.trim(), $options: 'i' } },
       ];
     }

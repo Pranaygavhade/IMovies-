@@ -57,4 +57,8 @@ const authorizeRoles = (...roles) => {
   };
 };
 
-module.exports = { protectRoute, authorizeRoles };
+module.exports = {
+  protectRoute,
+  protect: protectRoute,
+  authorizeRoles,
+};

@@ -33,19 +33,38 @@ const loginValidation = [
 const movieValidation = [
   body('title').trim().notEmpty().withMessage('Movie title is required'),
   body('description').trim().notEmpty().withMessage('Movie description is required'),
-  body('genre').notEmpty().withMessage('At least one genre is required'),
   body('language').trim().notEmpty().withMessage('Language is required'),
-  body('duration').isNumeric().withMessage('Duration must be a number in minutes'),
-  body('releaseDate').notEmpty().withMessage('Release date is required'),
+];
+
+const theatreValidation = [
+  body('name').trim().notEmpty().withMessage('Theatre name is required'),
+  body('city').trim().notEmpty().withMessage('City is required'),
+  body('address').trim().notEmpty().withMessage('Address is required'),
 ];
 
 const showValidation = [
   body('movie').notEmpty().withMessage('Movie ID is required'),
   body('theatre').notEmpty().withMessage('Theatre ID is required'),
   body('screen').trim().notEmpty().withMessage('Screen name is required'),
-  body('date').trim().notEmpty().withMessage('Date (YYYY-MM-DD) is required'),
-  body('startTime').trim().notEmpty().withMessage('Start time is required'),
-  body('endTime').trim().notEmpty().withMessage('End time is required'),
+];
+
+const bookingValidation = [
+  body('showId').notEmpty().withMessage('Show ID is required'),
+  body('seatNumbers').isArray({ min: 1 }).withMessage('At least one seatNumber is required'),
+];
+
+const paymentInitiateValidation = [
+  body('bookingId').notEmpty().withMessage('Booking ID is required'),
+];
+
+const paymentVerifyValidation = [
+  body('orderId').notEmpty().withMessage('Order ID is required'),
+];
+
+const reviewValidation = [
+  body('movieId').notEmpty().withMessage('Movie ID is required'),
+  body('rating').isInt({ min: 1, max: 5 }).withMessage('Rating must be an integer between 1 and 5'),
+  body('comment').trim().notEmpty().withMessage('Review comment is required'),
 ];
 
 module.exports = {
@@ -53,5 +72,10 @@ module.exports = {
   registerValidation,
   loginValidation,
   movieValidation,
+  theatreValidation,
   showValidation,
+  bookingValidation,
+  paymentInitiateValidation,
+  paymentVerifyValidation,
+  reviewValidation,
 };

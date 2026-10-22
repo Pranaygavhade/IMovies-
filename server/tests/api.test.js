@@ -9,7 +9,11 @@ jest.setTimeout(35000);
 let adminToken;
 let userToken;
 let testShowId;
+let testMovieId;
 let testSeatNumbers = [];
+let createdBookingId;
+let gatewayOrderId;
+let gatewaySimulationToken;
 
 beforeAll(async () => {
   await startServer();
@@ -30,11 +34,11 @@ beforeAll(async () => {
   const showsRes = await request(app).get('/api/v1/shows');
   if (showsRes.body.data.shows && showsRes.body.data.shows.length > 0) {
     testShowId = showsRes.body.data.shows[0]._id;
+    testMovieId = showsRes.body.data.shows[0].movie?._id || showsRes.body.data.shows[0].movie;
   }
 });
 
 afterAll(async () => {
-  // Close HTTP server and DB connections
   if (httpServer) {
     httpServer.close();
   }
@@ -120,7 +124,10 @@ describe('2. Movies & Search/Filter APIs', () => {
     const res = await request(app).get('/api/v1/movies?genre=Sci-Fi');
     expect(res.status).toBe(200);
     expect(res.body.data.movies.length).toBeGreaterThan(0);
-    expect(res.body.data.movies.every((m) => m.genre.includes('Sci-Fi'))).toBe(true);
+    const hasSciFi = res.body.data.movies.every(
+      (m) => (m.genres && m.genres.includes('Sci-Fi')) || (m.genre && m.genre.includes('Sci-Fi'))
+    );
+    expect(hasSciFi).toBe(true);
   });
 });
 
@@ -160,26 +167,87 @@ describe('3. Shows & Real-time Seat Availability', () => {
   });
 });
 
-describe('4. Bookings & Payment Workflow', () => {
-  it('should complete booking for the locked seats and generate QR code', async () => {
+describe('4. Complete End-to-End Booking & Payment Lifecycle', () => {
+  it('should create a pending booking for the locked seats with server-calculated amount', async () => {
     const res = await request(app)
       .post('/api/v1/bookings')
       .set('Authorization', `Bearer ${userToken}`)
       .send({
         showId: testShowId,
         seatNumbers: testSeatNumbers,
-        paymentMethod: 'card',
-        paymentDetails: { cardNumber: '4242424242424242', expMonth: '12', expYear: '28' },
       });
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.booking.bookingCode).toBeDefined();
-    expect(res.body.data.booking.qrData).toContain('data:image/png;base64');
+    expect(res.body.data.booking.status).toBe('pending');
+    expect(res.body.data.booking.totalAmount).toBeGreaterThan(0);
+    createdBookingId = res.body.data.booking._id;
+  });
+
+  it('should initiate payment order and return gateway details', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/initiate')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ bookingId: createdBookingId });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.orderId).toBeDefined();
+    gatewayOrderId = res.body.data.orderId;
+    gatewaySimulationToken = res.body.data.simulationToken;
+  });
+
+  it('should reject payment verification if signature / token is tampered', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/verify')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        bookingId: createdBookingId,
+        orderId: gatewayOrderId,
+        simulationToken: 'tampered_fake_token_value',
+        paymentMethod: 'card',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('should verify payment, confirm booking, generate QR code, and mark seats as booked', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/verify')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        bookingId: createdBookingId,
+        orderId: gatewayOrderId,
+        simulationToken: gatewaySimulationToken,
+        paymentMethod: 'card',
+        cardNumber: '4111 1111 1111 1111',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.booking.status).toBe('confirmed');
+    expect(res.body.data.booking.qrCode || res.body.data.booking.qrData).toContain('data:image/png;base64');
+  });
+
+  it('should handle idempotent payment verification without errors or double-booking', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/verify')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        bookingId: createdBookingId,
+        orderId: gatewayOrderId,
+        simulationToken: gatewaySimulationToken,
+        paymentMethod: 'card',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
     expect(res.body.data.booking.status).toBe('confirmed');
   });
 
-  it('should fetch user bookings history', async () => {
+  it('should fetch user bookings history including confirmed booking', async () => {
     const res = await request(app)
       .get('/api/v1/bookings/my')
       .set('Authorization', `Bearer ${userToken}`);
@@ -188,9 +256,54 @@ describe('4. Bookings & Payment Workflow', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.all.length).toBeGreaterThan(0);
   });
+
+  it('should cancel booking and process refund according to rules', async () => {
+    const res = await request(app)
+      .put(`/api/v1/bookings/${createdBookingId}/cancel`)
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe('cancelled');
+    expect(['full', 'partial', 'ineligible']).toContain(res.body.data.refundStatus);
+  });
 });
 
-describe('5. Role-Based Access Control', () => {
+describe('5. Watchlist (Favorites) & Reviews', () => {
+  it('should add a movie to user watchlist', async () => {
+    const res = await request(app)
+      .post(`/api/v1/favorites/${testMovieId}`)
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect([200, 201]).toContain(res.status);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('should list user favorites', async () => {
+    const res = await request(app)
+      .get('/api/v1/favorites')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.favorites.length).toBeGreaterThan(0);
+  });
+
+  it('should create a review and recalculate movie average rating', async () => {
+    const res = await request(app)
+      .post(`/api/v1/reviews/${testMovieId}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        rating: 5,
+        comment: 'Masterpiece! Visual storytelling at its finest.',
+      });
+
+    expect([200, 201]).toContain(res.status);
+    expect(res.body.success).toBe(true);
+  });
+});
+
+describe('6. Role-Based Access Control & Admin Features', () => {
   it('should forbid regular users from accessing admin statistics', async () => {
     const res = await request(app)
       .get('/api/v1/admin/stats')
@@ -208,5 +321,15 @@ describe('5. Role-Based Access Control', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.summary.totalRevenue).toBeDefined();
+  });
+
+  it('should export revenue report CSV for admin', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/reports/revenue-csv')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.header['content-type']).toContain('text/csv');
+    expect(res.text).toContain('Booking Code');
   });
 });

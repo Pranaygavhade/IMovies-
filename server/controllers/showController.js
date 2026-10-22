@@ -9,11 +9,14 @@ const { sendSuccess, sendError } = require('../utils/apiResponse');
 // @access  Public
 exports.getShows = async (req, res, next) => {
   try {
-    const { movie, city, date, theatre } = req.query;
+    const { movie, city, date, showDate, theatre } = req.query;
     const query = { status: 'active' };
 
     if (movie) query.movie = movie;
-    if (date) query.date = date;
+    const targetDate = showDate || date;
+    if (targetDate) {
+      query.$or = [{ showDate: targetDate }, { date: targetDate }];
+    }
     if (theatre) query.theatre = theatre;
 
     if (city && city !== 'All') {
@@ -24,9 +27,9 @@ exports.getShows = async (req, res, next) => {
     }
 
     const shows = await Show.find(query)
-      .populate('movie', 'title poster certificate duration language genre rating')
-      .populate('theatre', 'name city address amenities')
-      .sort({ date: 1, startTime: 1 })
+      .populate('movie', 'title poster certificate duration language genre rating averageRating')
+      .populate('theatre', 'name city address amenities lowerSeatPrice middleSeatPrice balconySeatPrice')
+      .sort({ showDate: 1, showTime: 1 })
       .lean();
 
     return sendSuccess(res, { shows }, 'Shows retrieved successfully');
@@ -41,8 +44,8 @@ exports.getShows = async (req, res, next) => {
 exports.getShowById = async (req, res, next) => {
   try {
     const show = await Show.findById(req.params.id)
-      .populate('movie', 'title poster certificate duration language genre rating backdrop')
-      .populate('theatre', 'name city address screens amenities');
+      .populate('movie', 'title poster certificate duration runtime language genres genre rating averageRating backdrop')
+      .populate('theatre', 'name city address screens amenities lowerSeatPrice middleSeatPrice balconySeatPrice');
 
     if (!show) {
       return sendError(res, 'Show not found', 404);
@@ -86,7 +89,26 @@ exports.getShowById = async (req, res, next) => {
 // @access  Private/Admin
 exports.createShow = async (req, res, next) => {
   try {
-    const { movie, theatre, screen, date, startTime, endTime, language, format, priceMap } = req.body;
+    const {
+      movie,
+      theatre,
+      screen,
+      date,
+      showDate,
+      startTime,
+      showTime,
+      endTime,
+      language,
+      format,
+      priceMap,
+    } = req.body;
+
+    const sDate = showDate || date;
+    const sTime = showTime || startTime;
+
+    if (!sDate || !sTime || !endTime || !movie || !theatre || !screen) {
+      return sendError(res, 'Please provide all required show fields', 400);
+    }
 
     const theatreDoc = await Theatre.findById(theatre);
     if (!theatreDoc) {
@@ -102,38 +124,47 @@ exports.createShow = async (req, res, next) => {
     const overlappingShow = await Show.findOne({
       theatre,
       screen,
-      date,
+      $or: [{ showDate: sDate }, { date: sDate }],
       status: 'active',
-      $or: [
-        { startTime: { $lte: startTime }, endTime: { $gte: startTime } },
-        { startTime: { $lte: endTime }, endTime: { $gte: endTime } },
-        { startTime: { $gte: startTime }, endTime: { $lte: endTime } },
+      $and: [
+        {
+          $or: [
+            { showTime: { $lte: sTime }, endTime: { $gte: sTime } },
+            { showTime: { $lte: endTime }, endTime: { $gte: endTime } },
+            { showTime: { $gte: sTime }, endTime: { $lte: endTime } },
+          ],
+        },
       ],
     });
 
     if (overlappingShow) {
       return sendError(
         res,
-        `Schedule conflict: Screen '${screen}' already has a show scheduled between ${overlappingShow.startTime} and ${overlappingShow.endTime}`,
+        `Schedule conflict: Screen '${screen}' already has a show scheduled (${overlappingShow.showTime || overlappingShow.startTime} - ${overlappingShow.endTime})`,
         400
       );
     }
+
+    const calculatedPriceMap = {
+      lower: priceMap?.lower || priceMap?.Regular || theatreDoc.lowerSeatPrice || 150,
+      middle: priceMap?.middle || priceMap?.Premium || theatreDoc.middleSeatPrice || 250,
+      balcony: priceMap?.balcony || priceMap?.Recliner || theatreDoc.balconySeatPrice || 400,
+      Regular: priceMap?.lower || priceMap?.Regular || theatreDoc.lowerSeatPrice || 150,
+      Premium: priceMap?.middle || priceMap?.Premium || theatreDoc.middleSeatPrice || 250,
+      Recliner: priceMap?.balcony || priceMap?.Recliner || theatreDoc.balconySeatPrice || 400,
+    };
 
     // Create show
     const show = await Show.create({
       movie,
       theatre,
       screen,
-      date,
-      startTime,
+      showDate: sDate,
+      showTime: sTime,
       endTime,
       language: language || movieDoc.language,
       format: format || '2D',
-      priceMap: priceMap || {
-        Regular: 220,
-        Premium: 350,
-        Recliner: 500,
-      },
+      priceMap: calculatedPriceMap,
       status: 'active',
     });
 
@@ -145,32 +176,34 @@ exports.createShow = async (req, res, next) => {
       for (const rowConfig of screenConfig.seatLayout) {
         const row = rowConfig.row;
         const count = rowConfig.seats || 10;
-        const category = rowConfig.category || 'Regular';
-        const price = (priceMap && priceMap[category]) || rowConfig.basePrice || 220;
+        const tier = rowConfig.tier || (row === 'A' ? 'balcony' : row === 'F' ? 'lower' : 'middle');
+        const category = rowConfig.category || (tier === 'balcony' ? 'Recliner' : tier === 'lower' ? 'Regular' : 'Premium');
+        const price = calculatedPriceMap[tier] || calculatedPriceMap[category] || rowConfig.basePrice || 250;
 
         for (let i = 1; i <= count; i++) {
           seatDocs.push({
             show: show._id,
             seatNumber: `${row}${i}`,
             row,
+            tier,
             category,
             price,
             status: 'available',
             lockedBy: null,
             lockExpiresAt: null,
-            bookingId: null,
+            booking: null,
           });
         }
       }
     } else {
-      // Default fallback layout (Rows A to G, 10 seats each)
+      // Default fallback layout (Rows A to F, 10 seats each)
       const rows = [
-        { row: 'A', category: 'Recliner', price: priceMap?.Recliner || 500 },
-        { row: 'B', category: 'Recliner', price: priceMap?.Recliner || 500 },
-        { row: 'C', category: 'Premium', price: priceMap?.Premium || 350 },
-        { row: 'D', category: 'Premium', price: priceMap?.Premium || 350 },
-        { row: 'E', category: 'Regular', price: priceMap?.Regular || 220 },
-        { row: 'F', category: 'Regular', price: priceMap?.Regular || 220 },
+        { row: 'A', tier: 'balcony', category: 'Recliner', price: calculatedPriceMap.balcony },
+        { row: 'B', tier: 'middle', category: 'Premium', price: calculatedPriceMap.middle },
+        { row: 'C', tier: 'middle', category: 'Premium', price: calculatedPriceMap.middle },
+        { row: 'D', tier: 'middle', category: 'Premium', price: calculatedPriceMap.middle },
+        { row: 'E', tier: 'lower', category: 'Regular', price: calculatedPriceMap.lower },
+        { row: 'F', tier: 'lower', category: 'Regular', price: calculatedPriceMap.lower },
       ];
       for (const r of rows) {
         for (let i = 1; i <= 10; i++) {
@@ -178,6 +211,7 @@ exports.createShow = async (req, res, next) => {
             show: show._id,
             seatNumber: `${r.row}${i}`,
             row: r.row,
+            tier: r.tier,
             category: r.category,
             price: r.price,
             status: 'available',
@@ -199,7 +233,11 @@ exports.createShow = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateShow = async (req, res, next) => {
   try {
-    const show = await Show.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { ...req.body };
+    if (updateData.date) updateData.showDate = updateData.date;
+    if (updateData.startTime) updateData.showTime = updateData.startTime;
+
+    const show = await Show.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     });

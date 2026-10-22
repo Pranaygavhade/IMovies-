@@ -6,24 +6,26 @@ const showSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Movie',
       required: [true, 'Movie reference is required'],
+      index: true,
     },
     theatre: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Theatre',
       required: [true, 'Theatre reference is required'],
+      index: true,
     },
     screen: {
       type: String,
       required: [true, 'Screen name is required'],
     },
-    date: {
+    showDate: {
       type: String, // format: YYYY-MM-DD
       required: [true, 'Show date (YYYY-MM-DD) is required'],
       index: true,
     },
-    startTime: {
+    showTime: {
       type: String, // e.g. "10:30 AM" or "14:00"
-      required: [true, 'Start time is required'],
+      required: [true, 'Show start time is required'],
     },
     endTime: {
       type: String, // e.g. "13:15"
@@ -40,9 +42,13 @@ const showSchema = new mongoose.Schema(
       default: '2D',
     },
     priceMap: {
-      Regular: { type: Number, default: 200 },
-      Premium: { type: Number, default: 350 },
-      Recliner: { type: Number, default: 500 },
+      lower: { type: Number, default: 150 },
+      middle: { type: Number, default: 250 },
+      balcony: { type: Number, default: 400 },
+      // Aliases for layout compatibility
+      Regular: { type: Number, default: 150 },
+      Premium: { type: Number, default: 250 },
+      Recliner: { type: Number, default: 400 },
     },
     status: {
       type: String,
@@ -50,11 +56,27 @@ const showSchema = new mongoose.Schema(
       default: 'active',
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Compound index for finding shows by movie, theatre, date
-showSchema.index({ movie: 1, date: 1, theatre: 1 });
-showSchema.index({ theatre: 1, screen: 1, date: 1 });
+// Virtual aliases for frontend compatibility
+showSchema.virtual('date').get(function () {
+  return this.showDate;
+});
+showSchema.virtual('startTime').get(function () {
+  return this.showTime;
+});
+
+// Indexes per specification
+showSchema.index(
+  { theatre: 1, screen: 1, showDate: 1, showTime: 1 },
+  { unique: true }
+);
+showSchema.index({ movie: 1, showDate: 1 });
+showSchema.index({ theatre: 1, showDate: 1 });
 
 module.exports = mongoose.model('Show', showSchema);

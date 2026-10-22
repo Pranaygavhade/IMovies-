@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Ticket, Search, ChevronLeft, Calendar, DollarSign, Film } from 'lucide-react';
+import { Ticket, Search, ChevronLeft, Calendar, DollarSign, Film, Download } from 'lucide-react';
 import api from '../api/axios';
 import { Spinner } from '../components/common/Loader';
 
@@ -10,6 +10,25 @@ const AdminBookings = () => {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+
+  const handleExportCSV = async () => {
+    try {
+      const response = await api.get('/admin/reports/revenue-csv', {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `imovies_revenue_report_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Revenue report CSV downloaded successfully!');
+    } catch (err) {
+      toast.error('Failed to export CSV report');
+    }
+  };
 
   const loadBookings = () => {
     setLoading(true);
@@ -39,6 +58,15 @@ const AdminBookings = () => {
             <ChevronLeft size={16} /> Back to Dashboard
           </Link>
           <h1 className="font-heading text-white fs-2 mb-0">Platform Bookings Ledger</h1>
+        </div>
+
+        <div>
+          <button
+            onClick={handleExportCSV}
+            className="btn btn-outline-warning btn-sm d-flex align-items-center gap-1"
+          >
+            <Download size={16} /> Export Revenue CSV
+          </button>
         </div>
       </div>
 

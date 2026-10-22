@@ -18,14 +18,20 @@ const seatSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    tier: {
+      type: String,
+      enum: ['lower', 'middle', 'balcony'],
+      default: 'middle',
+    },
     category: {
       type: String,
-      enum: ['Regular', 'Premium', 'Recliner'],
-      default: 'Regular',
+      enum: ['lower', 'middle', 'balcony', 'Regular', 'Premium', 'Recliner'],
+      default: 'middle',
     },
     price: {
       type: Number,
       required: true,
+      min: 0,
     },
     status: {
       type: String,
@@ -43,16 +49,25 @@ const seatSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-    bookingId: {
+    booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
       default: null,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Compound index to guarantee uniqueness of a seat within a show
+// Virtual alias for bookingId
+seatSchema.virtual('bookingId').get(function () {
+  return this.booking;
+});
+
+// Compound unique index guaranteeing single seatNumber per show
 seatSchema.index({ show: 1, seatNumber: 1 }, { unique: true });
 seatSchema.index({ show: 1, status: 1 });
 

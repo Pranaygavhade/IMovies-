@@ -144,8 +144,8 @@ exports.getAllUsers = async (req, res, next) => {
       ];
     }
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
     const skip = (pageNum - 1) * limitNum;
 
     const [users, total] = await Promise.all([
@@ -211,8 +211,8 @@ exports.getAllBookings = async (req, res, next) => {
       query.bookingCode = { $regex: search, $options: 'i' };
     }
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
     const skip = (pageNum - 1) * limitNum;
 
     const [bookings, total] = await Promise.all([
@@ -246,6 +246,94 @@ exports.getAllBookings = async (req, res, next) => {
       },
       'Bookings retrieved'
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all payments (Admin)
+// @route   GET /api/v1/admin/payments
+// @access  Private/Admin
+exports.getAllPayments = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+    const skip = (pageNum - 1) * limitNum;
+
+    const [payments, total] = await Promise.all([
+      Payment.find(query)
+        .populate('user', 'name email')
+        .populate({
+          path: 'booking',
+          select: 'bookingCode totalAmount status',
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Payment.countDocuments(query),
+    ]);
+
+    return sendSuccess(
+      res,
+      {
+        payments,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum) || 1,
+        },
+      },
+      'Payments retrieved successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Export revenue report as CSV (Admin)
+// @route   GET /api/v1/admin/reports/revenue/csv
+// @access  Private/Admin
+exports.exportRevenueReportCSV = async (req, res, next) => {
+  try {
+    const bookings = await Booking.find({ status: 'confirmed' })
+      .populate('user', 'name email')
+      .populate({
+        path: 'show',
+        populate: [{ path: 'movie', select: 'title' }, { path: 'theatre', select: 'name city' }],
+      })
+      .populate('payment', 'gateway method transactionId status')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let csvContent = 'Booking Code,Date,Customer Name,Customer Email,Movie,Theatre,City,Seats,Amount (INR),Payment Method,Gateway,Transaction ID\n';
+
+    bookings.forEach((b) => {
+      const code = b.bookingCode || '';
+      const date = b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : '';
+      const customerName = `"${(b.user?.name || '').replace(/"/g, '""')}"`;
+      const customerEmail = `"${(b.user?.email || '').replace(/"/g, '""')}"`;
+      const movie = `"${(b.show?.movie?.title || '').replace(/"/g, '""')}"`;
+      const theatre = `"${(b.show?.theatre?.name || '').replace(/"/g, '""')}"`;
+      const city = `"${(b.show?.theatre?.city || '').replace(/"/g, '""')}"`;
+      const seats = `"${b.seats.map((s) => s.seatNumber).join(';')}"`;
+      const amount = b.totalAmount || 0;
+      const method = b.payment?.method || 'card';
+      const gateway = b.payment?.gateway || 'simulated';
+      const txnId = b.payment?.transactionId || '';
+
+      csvContent += `${code},${date},${customerName},${customerEmail},${movie},${theatre},${city},${seats},${amount},${method},${gateway},${txnId}\n`;
+    });
+
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`imovies-revenue-report-${new Date().toISOString().split('T')[0]}.csv`);
+    return res.send(csvContent);
   } catch (error) {
     next(error);
   }

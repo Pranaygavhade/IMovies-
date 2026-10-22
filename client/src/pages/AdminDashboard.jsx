@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
   DollarSign,
   Ticket,
@@ -11,6 +12,7 @@ import {
   PlusCircle,
   Calendar,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -48,6 +50,25 @@ const AdminDashboard = () => {
 
   const { summary, revenueTrend, topMovies, recentBookings } = stats;
 
+  const handleExportCSV = async () => {
+    try {
+      const response = await api.get('/admin/reports/revenue-csv', {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `imovies_revenue_report_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Revenue report CSV downloaded successfully!');
+    } catch (err) {
+      toast.error('Failed to export CSV report');
+    }
+  };
+
   return (
     <div className="admin-dashboard container py-5">
       {/* Header */}
@@ -59,6 +80,12 @@ const AdminDashboard = () => {
 
         {/* Action Shortcuts */}
         <div className="d-flex flex-wrap gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="btn btn-outline-warning btn-sm d-flex align-items-center gap-1"
+          >
+            <Download size={16} /> Export Revenue CSV
+          </button>
           <Link to="/admin/movies" className="btn btn-cinema btn-sm d-flex align-items-center gap-1">
             <PlusCircle size={16} /> Manage Movies
           </Link>

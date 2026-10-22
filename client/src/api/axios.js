@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+// Strict relative base URL per architecture specification
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  baseURL: '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -19,12 +20,11 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle session expiry
+// Response interceptor to handle session expiry (401)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token if expired or invalid
       if (localStorage.getItem('imovies_token')) {
         localStorage.removeItem('imovies_token');
         localStorage.removeItem('imovies_user');

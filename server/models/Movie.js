@@ -6,14 +6,14 @@ const movieSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Movie title is required'],
       trim: true,
-      maxlength: [120, 'Title cannot exceed 120 characters'],
+      maxlength: [150, 'Title cannot exceed 150 characters'],
     },
     description: {
       type: String,
       required: [true, 'Movie description is required'],
       trim: true,
     },
-    genre: {
+    genres: {
       type: [String],
       required: [true, 'At least one genre is required'],
       validate: {
@@ -28,16 +28,15 @@ const movieSchema = new mongoose.Schema(
       required: [true, 'Language is required'],
       trim: true,
     },
-    duration: {
-      type: Number, // duration in minutes
-      required: [true, 'Duration in minutes is required'],
-      min: [1, 'Duration must be at least 1 minute'],
+    runtime: {
+      type: Number, // runtime in minutes
+      required: [true, 'Runtime in minutes is required'],
+      min: [1, 'Runtime must be at least 1 minute'],
     },
-    rating: {
-      type: Number,
-      default: 8.0,
-      min: 0,
-      max: 10,
+    certification: {
+      type: String,
+      enum: ['U', 'UA', 'A'],
+      default: 'UA',
     },
     releaseDate: {
       type: Date,
@@ -45,7 +44,7 @@ const movieSchema = new mongoose.Schema(
     },
     poster: {
       type: String,
-      required: [true, 'Movie poster URL or file path is required'],
+      required: [true, 'Movie poster URL is required'],
     },
     backdrop: {
       type: String,
@@ -64,23 +63,47 @@ const movieSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
-    certificate: {
-      type: String,
-      enum: ['U', 'UA', 'A'],
-      default: 'UA',
-    },
     status: {
       type: String,
       enum: ['now_showing', 'upcoming'],
       default: 'now_showing',
+      index: true,
+    },
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    ratingCount: {
+      type: Number,
+      default: 0,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Text index for search functionality across title, genre, and language
+// Virtual aliases for frontend backwards-compatibility
+movieSchema.virtual('genre').get(function () {
+  return this.genres;
+});
+movieSchema.virtual('duration').get(function () {
+  return this.runtime;
+});
+movieSchema.virtual('certificate').get(function () {
+  return this.certification;
+});
+movieSchema.virtual('rating').get(function () {
+  return this.averageRating;
+});
+
+// Indexes per specifications
 movieSchema.index(
-  { title: 'text', genre: 'text', language: 'text', director: 'text' },
+  { title: 'text', genres: 'text', language: 'text' },
   { language_override: 'none' }
 );
 movieSchema.index({ status: 1, releaseDate: -1 });

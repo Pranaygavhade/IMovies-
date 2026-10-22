@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   CheckCircle,
+  Heart,
 } from 'lucide-react';
 import { logout } from '../../redux/slices/authSlice';
 import { setSelectedCity } from '../../redux/slices/movieSlice';
@@ -134,18 +135,32 @@ const Navbar = () => {
             </li>
 
             {isAuthenticated && (
-              <li className="nav-item">
-                <Link
-                  to="/bookings"
-                  className={`nav-link px-3 d-flex align-items-center gap-1 ${
-                    location.pathname === '/bookings' ? 'text-danger fw-bold' : 'text-light'
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Ticket size={16} />
-                  <span>My Tickets</span>
-                </Link>
-              </li>
+              <>
+                <li className="nav-item">
+                  <Link
+                    to="/bookings"
+                    className={`nav-link px-3 d-flex align-items-center gap-1 ${
+                      location.pathname === '/bookings' ? 'text-danger fw-bold' : 'text-light'
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Ticket size={16} />
+                    <span>My Tickets</span>
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    to="/watchlist"
+                    className={`nav-link px-3 d-flex align-items-center gap-1 ${
+                      location.pathname === '/watchlist' ? 'text-danger fw-bold' : 'text-light'
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Heart size={16} />
+                    <span>Watchlist</span>
+                  </Link>
+                </li>
+              </>
             )}
 
             {/* Notification Dropdown */}
@@ -245,6 +260,14 @@ const Navbar = () => {
                       onClick={() => setUserDropdownOpen(false)}
                     >
                       <Ticket size={16} /> My Bookings
+                    </Link>
+
+                    <Link
+                      to="/watchlist"
+                      className="dropdown-item py-2 px-3 text-light d-flex align-items-center gap-2 rounded-2"
+                      onClick={() => setUserDropdownOpen(false)}
+                    >
+                      <Heart size={16} /> My Watchlist
                     </Link>
 
                     {user?.role === 'admin' && (

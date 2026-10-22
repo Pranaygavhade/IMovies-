@@ -37,19 +37,41 @@ export const releaseSelectedSeats = createAsyncThunk(
   }
 );
 
-export const createBookingOrder = createAsyncThunk(
-  'booking/createBookingOrder',
-  async ({ showId, seatNumbers, paymentMethod, paymentDetails }, { rejectWithValue }) => {
+// 1. Create Pending Booking
+export const createPendingBooking = createAsyncThunk(
+  'booking/createPendingBooking',
+  async ({ showId, seatNumbers }, { rejectWithValue }) => {
     try {
-      const response = await api.post('/bookings', {
-        showId,
-        seatNumbers,
-        paymentMethod,
-        paymentDetails,
-      });
-      return response.data.data.booking;
+      const response = await api.post('/bookings', { showId, seatNumbers });
+      return response.data.data;
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Booking failed');
+      return rejectWithValue(err.response?.data?.message || 'Failed to create reservation');
+    }
+  }
+);
+
+// 2. Initiate Payment Order
+export const initiatePaymentOrder = createAsyncThunk(
+  'booking/initiatePaymentOrder',
+  async ({ bookingId }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/payments/initiate', { bookingId });
+      return response.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to initiate payment');
+    }
+  }
+);
+
+// 3. Verify Payment
+export const verifyPaymentOrder = createAsyncThunk(
+  'booking/verifyPaymentOrder',
+  async (verifyPayload, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/payments/verify', verifyPayload);
+      return response.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Payment verification failed');
     }
   }
 );
@@ -86,18 +108,21 @@ const bookingSlice = createSlice({
     selectedSeats: [],
     totalAmount: 0,
     lockExpiresAt: null,
+    pendingBooking: null,
+    paymentOrder: null,
     activeBooking: null,
     myBookings: [],
     upcomingBookings: [],
     pastBookings: [],
     loading: false,
     lockingLoading: false,
+    paymentLoading: false,
     error: null,
   },
   reducers: {
     toggleSeatSelect: (state, action) => {
       const seat = action.payload;
-      const index = state.selectedSeats.findIndex((s) => s._id === seat._id);
+      const index = state.selectedSeats.findIndex((s) => s.seatNumber === seat.seatNumber);
 
       if (index >= 0) {
         state.selectedSeats.splice(index, 1);
@@ -117,6 +142,8 @@ const bookingSlice = createSlice({
     },
     clearActiveBooking: (state) => {
       state.activeBooking = null;
+      state.pendingBooking = null;
+      state.paymentOrder = null;
     },
     updateSeatStatusRealtime: (state, action) => {
       const { seats: affectedSeatNumbers, status, lockedBy, lockExpiresAt } = action.payload;
@@ -170,20 +197,47 @@ const bookingSlice = createSlice({
       .addCase(releaseSelectedSeats.fulfilled, (state) => {
         state.lockExpiresAt = null;
       })
-      // Create booking
-      .addCase(createBookingOrder.pending, (state) => {
+      // Create Pending Booking
+      .addCase(createPendingBooking.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(createBookingOrder.fulfilled, (state, action) => {
+      .addCase(createPendingBooking.fulfilled, (state, action) => {
         state.loading = false;
-        state.activeBooking = action.payload;
+        state.pendingBooking = action.payload.booking;
+        state.totalAmount = action.payload.totalAmount;
+      })
+      .addCase(createPendingBooking.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Initiate Payment Order
+      .addCase(initiatePaymentOrder.pending, (state) => {
+        state.paymentLoading = true;
+        state.error = null;
+      })
+      .addCase(initiatePaymentOrder.fulfilled, (state, action) => {
+        state.paymentLoading = false;
+        state.paymentOrder = action.payload;
+      })
+      .addCase(initiatePaymentOrder.rejected, (state, action) => {
+        state.paymentLoading = false;
+        state.error = action.payload;
+      })
+      // Verify Payment Order
+      .addCase(verifyPaymentOrder.pending, (state) => {
+        state.paymentLoading = true;
+        state.error = null;
+      })
+      .addCase(verifyPaymentOrder.fulfilled, (state, action) => {
+        state.paymentLoading = false;
+        state.activeBooking = action.payload.booking;
         state.selectedSeats = [];
         state.totalAmount = 0;
         state.lockExpiresAt = null;
       })
-      .addCase(createBookingOrder.rejected, (state, action) => {
-        state.loading = false;
+      .addCase(verifyPaymentOrder.rejected, (state, action) => {
+        state.paymentLoading = false;
         state.error = action.payload;
       })
       // Fetch my bookings

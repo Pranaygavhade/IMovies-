@@ -19,29 +19,66 @@ const paymentSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    currency: {
+      type: String,
+      default: 'INR',
+      trim: true,
+    },
     method: {
       type: String,
       enum: ['card', 'UPI', 'netbanking', 'wallet'],
       default: 'card',
     },
+    gateway: {
+      type: String,
+      enum: ['razorpay', 'simulated'],
+      default: 'simulated',
+      required: true,
+    },
+    gatewayOrderId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    gatewayPaymentId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    gatewaySignature: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     transactionId: {
       type: String,
-      required: true,
-      unique: true,
       trim: true,
+      default: '',
     },
     status: {
       type: String,
-      enum: ['success', 'failed', 'refunded'],
-      default: 'success',
+      enum: ['created', 'success', 'failed', 'refunded'],
+      default: 'created',
       index: true,
+    },
+    failureReason: {
+      type: String,
+      default: '',
     },
     gatewayResponse: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
+
+paymentSchema.index({ gatewayOrderId: 1 });
+paymentSchema.index({ gatewayPaymentId: 1 });
+paymentSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Payment', paymentSchema);
