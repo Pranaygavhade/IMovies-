@@ -177,23 +177,38 @@ const MyBookings = () => {
                       )}
                     </div>
 
-                    <div className="d-flex gap-2 justify-content-md-end">
-                      {b.qrData && (
-                        <button
-                          className="btn btn-outline-secondary btn-sm text-light d-flex align-items-center gap-1"
-                          onClick={() => setSelectedBookingForQr(b)}
-                        >
-                          <QrCode size={16} /> QR Ticket
-                        </button>
-                      )}
+                    <div className="d-flex flex-wrap gap-2 justify-content-md-end">
+                      {b.status === 'payment_under_review' ? (
+                        <span className="badge bg-warning text-dark px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
+                          <Clock size={14} className="animate-pulse" /> Review in Progress
+                        </span>
+                      ) : (
+                        <>
+                          <Link
+                            to={`/booking/confirmation/${b._id}`}
+                            className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1"
+                          >
+                            <Ticket size={16} /> E-Pass
+                          </Link>
 
-                      {!isCancelled && activeTab === 'upcoming' && (
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={() => setBookingToCancel(b)}
-                        >
-                          Cancel Ticket
-                        </button>
+                          {b.qrData && (
+                            <button
+                              className="btn btn-outline-secondary btn-sm text-light d-flex align-items-center gap-1"
+                              onClick={() => setSelectedBookingForQr(b)}
+                            >
+                              <QrCode size={16} /> QR Pass
+                            </button>
+                          )}
+
+                          {!isCancelled && activeTab === 'upcoming' && (
+                            <button
+                              className="btn btn-outline-secondary btn-sm text-danger"
+                              onClick={() => setBookingToCancel(b)}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

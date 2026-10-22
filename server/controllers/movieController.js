@@ -2,6 +2,8 @@ const Movie = require('../models/Movie');
 const Show = require('../models/Show');
 const Theatre = require('../models/Theatre');
 const Seat = require('../models/Seat');
+const Booking = require('../models/Booking');
+const Favorite = require('../models/Favorite');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const { isShowPast } = require('../utils/dateUtils');
 
@@ -77,16 +79,18 @@ exports.getMovies = async (req, res, next) => {
       }
     }
 
-    // Sorting
+    // Sorting options: Popular, Rating, Release Date, Title
     let sortQuery = { releaseDate: -1 };
-    if (sort === 'trending' || sort === 'popularity_desc') {
+    if (sort === 'trending' || sort === 'popularity_desc' || sort === 'popular') {
       sortQuery = { popularity: -1, releaseDate: -1 };
-    } else if (sort === 'rating_desc') {
+    } else if (sort === 'rating_desc' || sort === 'rating') {
       sortQuery = { rating: -1, averageRating: -1 };
     } else if (sort === 'rating_asc') {
       sortQuery = { rating: 1, averageRating: 1 };
     } else if (sort === 'release_asc') {
       sortQuery = { releaseDate: 1 };
+    } else if (sort === 'release_desc' || sort === 'release_date') {
+      sortQuery = { releaseDate: -1 };
     } else if (sort === 'title_asc') {
       sortQuery = { title: 1 };
     }
@@ -96,15 +100,76 @@ exports.getMovies = async (req, res, next) => {
     const limitNum = parseInt(limit, 10) || 12;
     const skip = (pageNum - 1) * limitNum;
 
-    const [movies, total] = await Promise.all([
+    const [rawMovies, total] = await Promise.all([
       Movie.find(query).sort(sortQuery).skip(skip).limit(limitNum).lean(),
       Movie.countDocuments(query),
     ]);
 
+    // Enrich movies with available cinema count, next 3 upcoming showtimes, and theatre amenities
+    const movieIds = rawMovies.map((m) => m._id);
+    let theatreFilter = {};
+    if (city && city !== 'All') {
+      const cityTheatres = await Theatre.find({ city: new RegExp(`^${city}$`, 'i') }).select('_id');
+      theatreFilter = { theatre: { $in: cityTheatres.map((t) => t._id) } };
+    }
+
+    const activeShows = await Show.find({
+      movie: { $in: movieIds },
+      status: 'active',
+      ...theatreFilter,
+    })
+      .populate('theatre', 'name city amenities screens')
+      .sort({ showDate: 1, showTime: 1 })
+      .lean();
+
+    const showsByMovie = {};
+    for (const s of activeShows) {
+      const mId = s.movie.toString();
+      if (!showsByMovie[mId]) showsByMovie[mId] = [];
+      showsByMovie[mId].push(s);
+    }
+
+    const enrichedMovies = rawMovies.map((m) => {
+      const mShows = showsByMovie[m._id.toString()] || [];
+      const distinctTheatres = new Set(mShows.map((s) => s.theatre?._id?.toString() || s.theatre?.toString()));
+
+      // Next up to 3 upcoming shows
+      const upcomingShows = mShows
+        .filter((s) => !isShowPast(s.showDate || s.date, s.showTime || s.startTime))
+        .slice(0, 3)
+        .map((s) => ({
+          showId: s._id,
+          showDate: s.showDate,
+          showTime: s.showTime,
+          format: s.format,
+          theatreName: s.theatre?.name || '',
+          theatreCity: s.theatre?.city || '',
+          price: s.priceMap?.middle || s.priceMap?.lower || 150,
+        }));
+
+      // Collect distinct amenities
+      const amenitiesSet = new Set();
+      mShows.forEach((s) => {
+        if (s.theatre?.amenities && Array.isArray(s.theatre.amenities)) {
+          s.theatre.amenities.forEach((a) => amenitiesSet.add(a));
+        }
+        if (s.format && s.format !== '2D') {
+          amenitiesSet.add(s.format);
+        }
+      });
+
+      return {
+        ...m,
+        cinemasCount: distinctTheatres.size,
+        nextShows: upcomingShows,
+        theatreAmenities: Array.from(amenitiesSet),
+      };
+    });
+
     return sendSuccess(
       res,
       {
-        movies,
+        movies: enrichedMovies,
         pagination: {
           total,
           page: pageNum,
@@ -304,6 +369,154 @@ exports.deleteMovie = async (req, res, next) => {
     await Movie.findByIdAndDelete(req.params.id);
 
     return sendSuccess(res, null, 'Movie and associated shows cancelled successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get trending movies ranked by real bookings in last 7 days + watchlist adds + TMDB popularity
+// @route   GET /api/v1/movies/trending
+// @access  Public
+exports.getTrendingMovies = async (req, res, next) => {
+  try {
+    const { city, limit = 10 } = req.query;
+
+    let theatreFilter = {};
+    if (city && city !== 'All') {
+      const cityTheatres = await Theatre.find({ city: new RegExp(`^${city}$`, 'i') }).select('_id');
+      theatreFilter = { theatre: { $in: cityTheatres.map((t) => t._id) } };
+    }
+
+    // 1. Fetch now_showing movies
+    const movies = await Movie.find({ status: 'now_showing' }).lean();
+
+    // 2. Aggregate confirmed bookings from last 7 days
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentBookings = await Booking.find({
+      status: 'confirmed',
+      createdAt: { $gte: sevenDaysAgo },
+    })
+      .populate('show', 'movie')
+      .select('show')
+      .lean();
+
+    const bookingCounts = {};
+    for (const b of recentBookings) {
+      const mId = b.show?.movie?.toString();
+      if (mId) {
+        bookingCounts[mId] = (bookingCounts[mId] || 0) + 1;
+      }
+    }
+
+    // 3. Aggregate watchlist additions
+    const favorites = await Favorite.find({}).select('movie').lean();
+    const favoriteCounts = {};
+    for (const f of favorites) {
+      const mId = f.movie?.toString();
+      if (mId) {
+        favoriteCounts[mId] = (favoriteCounts[mId] || 0) + 1;
+      }
+    }
+
+    // 4. Calculate weighted score: (bookings * 10) + (watchlist * 3) + popularity
+    const rankedMovies = movies.map((m) => {
+      const mId = m._id.toString();
+      const bookingsCount = bookingCounts[mId] || 0;
+      const watchlistCount = favoriteCounts[mId] || 0;
+      const popularityScore = m.popularity || 50;
+
+      const trendingScore = bookingsCount * 10 + watchlistCount * 3 + popularityScore;
+      return {
+        ...m,
+        trendingMetrics: {
+          recentBookings: bookingsCount,
+          watchlistAdds: watchlistCount,
+          popularity: popularityScore,
+        },
+        trendingScore,
+      };
+    });
+
+    rankedMovies.sort((a, b) => b.trendingScore - a.trendingScore);
+
+    const topTrending = rankedMovies.slice(0, parseInt(limit, 10));
+
+    return sendSuccess(
+      res,
+      {
+        movies: topTrending,
+        rankingBasis: 'Ranked by bookings in last 7 days, watchlist adds & TMDB popularity',
+      },
+      'Trending movies retrieved'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Live search suggestions for movies, cinemas, and genres as user types
+// @route   GET /api/v1/movies/suggestions?q=
+// @access  Public
+exports.getSearchSuggestions = async (req, res, next) => {
+  try {
+    const { q, city } = req.query;
+
+    if (!q || q.trim() === '') {
+      return sendSuccess(res, { movies: [], cinemas: [], genres: [] }, 'Empty query');
+    }
+
+    const cleanQ = q.trim();
+    const regex = new RegExp(cleanQ, 'i');
+
+    // 1. Match Movies
+    const movies = await Movie.find({
+      $or: [{ title: regex }, { director: regex }],
+      status: { $in: ['now_showing', 'upcoming'] },
+    })
+      .select('title poster certification runtime releaseDate averageRating genres')
+      .limit(5)
+      .lean();
+
+    // 2. Match Cinemas / Theatres
+    const theatreQuery = { name: regex };
+    if (city && city !== 'All') {
+      theatreQuery.city = new RegExp(`^${city}$`, 'i');
+    }
+    const cinemas = await Theatre.find(theatreQuery)
+      .select('name city address amenities')
+      .limit(5)
+      .lean();
+
+    // 3. Match Genres
+    const ALL_GENRES = [
+      'Action',
+      'Adventure',
+      'Animation',
+      'Biography',
+      'Comedy',
+      'Crime',
+      'Drama',
+      'Family',
+      'Fantasy',
+      'History',
+      'Horror',
+      'Music',
+      'Mystery',
+      'Romance',
+      'Sci-Fi',
+      'Thriller',
+    ];
+    const matchingGenres = ALL_GENRES.filter((g) => g.toLowerCase().includes(cleanQ.toLowerCase())).slice(0, 5);
+
+    return sendSuccess(
+      res,
+      {
+        movies,
+        cinemas,
+        genres: matchingGenres,
+      },
+      'Search suggestions retrieved'
+    );
   } catch (error) {
     next(error);
   }

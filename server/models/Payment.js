@@ -26,14 +26,19 @@ const paymentSchema = new mongoose.Schema(
     },
     method: {
       type: String,
-      enum: ['card', 'UPI', 'netbanking', 'wallet'],
+      enum: ['card', 'UPI', 'netbanking', 'wallet', 'phonepe_qr'],
       default: 'card',
     },
     gateway: {
       type: String,
-      enum: ['razorpay', 'simulated'],
+      enum: ['razorpay', 'simulated', 'phonepe', 'manual_phonepe_qr'],
       default: 'simulated',
       required: true,
+    },
+    utrNumber: {
+      type: String,
+      trim: true,
+      default: null,
     },
     gatewayOrderId: {
       type: String,

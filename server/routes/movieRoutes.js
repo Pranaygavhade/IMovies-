@@ -3,6 +3,8 @@ const router = express.Router();
 const {
   getMovies,
   getMovieById,
+  getTrendingMovies,
+  getSearchSuggestions,
   createMovie,
   updateMovie,
   deleteMovie,
@@ -11,6 +13,8 @@ const { protectRoute, authorizeRoles } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 router.get('/', getMovies);
+router.get('/trending', getTrendingMovies);
+router.get('/suggestions', getSearchSuggestions);
 router.get('/:id', getMovieById);
 
 router.post(

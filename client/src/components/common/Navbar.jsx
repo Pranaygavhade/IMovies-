@@ -17,6 +17,10 @@ import {
   Navigation,
   Compass,
   Check,
+  QrCode,
+  Smartphone,
+  Tag,
+  Building,
 } from 'lucide-react';
 import { logout, updateUserProfile } from '../../redux/slices/authSlice';
 import {
@@ -43,6 +47,11 @@ const Navbar = () => {
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [citySearchFilter, setCitySearchFilter] = useState('');
 
+  // Live search suggestions
+  const [suggestions, setSuggestions] = useState({ movies: [], cinemas: [], genres: [] });
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchContainerRef = useRef(null);
+
   const cityDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -57,11 +66,33 @@ const Navbar = () => {
     }
   }, [isAuthenticated, dispatch]);
 
-  // Click outside listener for city dropdown
+  // Live suggestions query
+  useEffect(() => {
+    if (searchQuery.trim().length >= 2) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await api.get(`/movies/suggestions?q=${encodeURIComponent(searchQuery.trim())}&city=${selectedCity}`);
+          setSuggestions(res.data.data || { movies: [], cinemas: [], genres: [] });
+          setShowSuggestions(true);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      setSuggestions({ movies: [], cinemas: [], genres: [] });
+      setShowSuggestions(false);
+    }
+  }, [searchQuery, selectedCity]);
+
+  // Click outside listener for city dropdown & suggestions
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (cityDropdownRef.current && !cityDropdownRef.current.contains(e.target)) {
         setCityDropdownOpen(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -263,25 +294,138 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Search Bar */}
-        <form
-          onSubmit={handleSearchSubmit}
-          className="d-none d-lg-flex mx-auto position-relative"
-          style={{ width: '360px' }}
-        >
-          <Search
-            size={18}
-            className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"
-          />
-          <input
-            type="text"
-            className="form-control rounded-pill ps-5 py-2 text-light border-0"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
-            placeholder="Search movies, genres, cinemas..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </form>
+        {/* Search Bar with Autocomplete Suggestions */}
+        <div ref={searchContainerRef} className="d-none d-lg-flex mx-auto position-relative" style={{ width: '380px' }}>
+          <form onSubmit={handleSearchSubmit} className="w-100 position-relative">
+            <Search
+              size={18}
+              className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"
+            />
+            <input
+              type="text"
+              className="form-control rounded-pill ps-5 py-2 text-light border-0"
+              style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
+              placeholder="Search movies, genres, cinemas..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (searchQuery.trim().length >= 2) setShowSuggestions(true);
+              }}
+            />
+          </form>
+
+          {/* Autocomplete Suggestions Dropdown */}
+          {showSuggestions &&
+            (suggestions.movies?.length > 0 ||
+              suggestions.cinemas?.length > 0 ||
+              suggestions.genres?.length > 0) && (
+              <div
+                className="position-absolute start-0 w-100 mt-2 p-2 rounded-3 shadow-lg border border-secondary"
+                style={{
+                  top: '100%',
+                  backgroundColor: 'rgba(12, 12, 22, 0.98)',
+                  backdropFilter: 'blur(16px)',
+                  zIndex: 1060,
+                  maxHeight: '380px',
+                  overflowY: 'auto',
+                }}
+              >
+                {/* Movies Group */}
+                {suggestions.movies?.length > 0 && (
+                  <div className="mb-2">
+                    <span
+                      className="text-muted text-uppercase fw-bold px-2 py-1 d-block"
+                      style={{ fontSize: '0.68rem', letterSpacing: '0.05em' }}
+                    >
+                      Movies
+                    </span>
+                    {suggestions.movies.map((m) => (
+                      <div
+                        key={m._id}
+                        className="d-flex align-items-center gap-2 p-2 rounded-2 cursor-pointer hover-bg-dark text-white text-decoration-none"
+                        onClick={() => {
+                          setShowSuggestions(false);
+                          setSearchQuery('');
+                          navigate(`/movies/${m._id}`);
+                        }}
+                      >
+                        <img
+                          src={m.poster || 'https://via.placeholder.com/60'}
+                          alt={m.title}
+                          className="rounded"
+                          style={{ width: '32px', height: '46px', objectFit: 'cover' }}
+                        />
+                        <div className="text-truncate">
+                          <div className="fw-semibold small text-truncate text-white">{m.title}</div>
+                          <div className="text-muted small" style={{ fontSize: '0.72rem' }}>
+                            {m.certification || 'UA'} • {m.genres?.slice(0, 2).join(', ')}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Cinemas Group */}
+                {suggestions.cinemas?.length > 0 && (
+                  <div className="mb-2 border-top border-secondary border-opacity-25 pt-2">
+                    <span
+                      className="text-muted text-uppercase fw-bold px-2 py-1 d-block"
+                      style={{ fontSize: '0.68rem', letterSpacing: '0.05em' }}
+                    >
+                      Cinemas
+                    </span>
+                    {suggestions.cinemas.map((c) => (
+                      <div
+                        key={c._id}
+                        className="d-flex align-items-center gap-2 p-2 rounded-2 cursor-pointer hover-bg-dark text-white text-decoration-none"
+                        onClick={() => {
+                          setShowSuggestions(false);
+                          setSearchQuery('');
+                          navigate(`/movies?theatre=${c._id}`);
+                        }}
+                      >
+                        <Building size={16} className="text-danger flex-shrink-0" />
+                        <div className="text-truncate">
+                          <div className="fw-semibold small text-truncate text-white">{c.name}</div>
+                          <div className="text-muted small" style={{ fontSize: '0.72rem' }}>
+                            {c.city} • {c.amenities?.slice(0, 2).join(', ') || 'Multiplex'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Genres Group */}
+                {suggestions.genres?.length > 0 && (
+                  <div className="border-top border-secondary border-opacity-25 pt-2">
+                    <span
+                      className="text-muted text-uppercase fw-bold px-2 py-1 d-block"
+                      style={{ fontSize: '0.68rem', letterSpacing: '0.05em' }}
+                    >
+                      Genres
+                    </span>
+                    <div className="d-flex flex-wrap gap-1 px-2 py-1">
+                      {suggestions.genres.map((g) => (
+                        <span
+                          key={g}
+                          className="badge bg-dark border border-secondary text-light px-2 py-1 cursor-pointer hover-danger"
+                          onClick={() => {
+                            setShowSuggestions(false);
+                            setSearchQuery('');
+                            navigate(`/movies?genre=${g}`);
+                          }}
+                        >
+                          <Tag size={10} className="me-1" /> {g}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+        </div>
 
         {/* Mobile menu toggle */}
         <button
@@ -488,13 +632,29 @@ const Navbar = () => {
                     </Link>
 
                     {user?.role === 'admin' && (
-                      <Link
-                        to="/admin"
-                        className="dropdown-item py-2 px-3 text-danger d-flex align-items-center gap-2 rounded-2 fw-semibold"
-                        onClick={() => setUserDropdownOpen(false)}
-                      >
-                        <Shield size={16} /> Admin Portal
-                      </Link>
+                      <>
+                        <Link
+                          to="/admin"
+                          className="dropdown-item py-2 px-3 text-danger d-flex align-items-center gap-2 rounded-2 fw-semibold"
+                          onClick={() => setUserDropdownOpen(false)}
+                        >
+                          <Shield size={16} /> Admin Portal
+                        </Link>
+                        <Link
+                          to="/admin/scan-ticket"
+                          className="dropdown-item py-2 px-3 text-light d-flex align-items-center gap-2 rounded-2"
+                          onClick={() => setUserDropdownOpen(false)}
+                        >
+                          <QrCode size={16} /> Scan Ticket
+                        </Link>
+                        <Link
+                          to="/admin/pending-payments"
+                          className="dropdown-item py-2 px-3 text-warning d-flex align-items-center gap-2 rounded-2 fw-semibold"
+                          onClick={() => setUserDropdownOpen(false)}
+                        >
+                          <Smartphone size={16} /> Pending Payments
+                        </Link>
+                      </>
                     )}
 
                     <div className="dropdown-divider border-secondary my-1"></div>

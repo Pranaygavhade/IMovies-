@@ -61,4 +61,5 @@ module.exports = {
   protectRoute,
   protect: protectRoute,
   authorizeRoles,
+  authorize: authorizeRoles,
 };

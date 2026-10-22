@@ -12,6 +12,12 @@ const {
 } = require('../controllers/adminController');
 const { protectRoute, authorizeRoles } = require('../middleware/auth');
 
+const {
+  getPendingPaymentsAdmin,
+  approveManualPaymentAdmin,
+  rejectManualPaymentAdmin,
+} = require('../controllers/paymentController');
+
 router.use(protectRoute);
 router.use(authorizeRoles('admin'));
 
@@ -25,5 +31,10 @@ router.post('/generate-shows', generateShowsAdmin);
 router.get('/generate-shows', generateShowsAdmin);
 router.get('/reports/revenue-csv', exportRevenueReportCSV);
 router.get('/reports/revenue/csv', exportRevenueReportCSV);
+
+// Pending Manual Payments Review & Approval
+router.get('/pending-payments', getPendingPaymentsAdmin);
+router.post('/payments/:bookingId/approve', approveManualPaymentAdmin);
+router.post('/payments/:bookingId/reject', rejectManualPaymentAdmin);
 
 module.exports = router;

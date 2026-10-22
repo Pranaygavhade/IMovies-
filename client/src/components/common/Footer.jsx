@@ -77,7 +77,7 @@ const Footer = () => {
             &copy; {new Date().getFullYear()} IMovies Entertainment Inc. All rights reserved.
           </div>
           <div className="d-flex align-items-center gap-1">
-            Engineered with <Heart size={14} className="text-danger fill-danger" /> for movie lovers everywhere.
+            Engineered with <Heart size={14} className="text-danger fill-danger mx-1" /> love for movie lovers everywhere
           </div>
         </div>
       </div>

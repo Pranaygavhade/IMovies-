@@ -26,7 +26,10 @@ import AdminTheatres from './pages/AdminTheatres';
 import AdminShows from './pages/AdminShows';
 import AdminUsers from './pages/AdminUsers';
 import AdminBookings from './pages/AdminBookings';
+import AdminScanTicket from './pages/AdminScanTicket';
+import AdminPendingPayments from './pages/AdminPendingPayments';
 import NotFound from './pages/NotFound';
+import MobileBottomNav from './components/common/MobileBottomNav';
 
 import { fetchCurrentUser, logout } from './redux/slices/authSlice';
 import { fetchCities } from './redux/slices/movieSlice';
@@ -99,6 +102,14 @@ function App() {
             }
           />
           <Route
+            path="/my-bookings"
+            element={
+              <ProtectedRoute>
+                <MyBookings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/watchlist"
             element={
               <ProtectedRoute>
@@ -164,12 +175,29 @@ function App() {
               </AdminRoute>
             }
           />
+          <Route
+            path="/admin/scan-ticket"
+            element={
+              <AdminRoute>
+                <AdminScanTicket />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/pending-payments"
+            element={
+              <AdminRoute>
+                <AdminPendingPayments />
+              </AdminRoute>
+            }
+          />
 
           {/* 404 Fallback */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
 
+      <MobileBottomNav />
       <Footer />
 
       {/* Toast Notifications Container */}

@@ -15,6 +15,8 @@ import {
   Download,
   RefreshCw,
   Sparkles,
+  QrCode,
+  Smartphone,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -149,6 +151,12 @@ const AdminDashboard = () => {
           >
             <Download size={16} /> Export Revenue CSV
           </button>
+          <Link to="/admin/scan-ticket" className="btn btn-outline-success btn-sm d-flex align-items-center gap-1">
+            <QrCode size={16} /> Scan Ticket
+          </Link>
+          <Link to="/admin/pending-payments" className="btn btn-outline-warning btn-sm d-flex align-items-center gap-1">
+            <Smartphone size={16} /> Pending Payments
+          </Link>
           <Link to="/admin/movies" className="btn btn-cinema btn-sm d-flex align-items-center gap-1">
             <PlusCircle size={16} /> Manage Movies
           </Link>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
@@ -14,20 +14,24 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { Spinner } from '../components/common/Loader';
+import { formatINR } from '../utils/dateUtils';
+import { toast } from 'react-toastify';
 
 const BookingConfirmation = () => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const ticketRef = useRef(null);
 
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [loading, setLoading] = useState(!booking);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    // Blast confetti upon successful booking!
+    // Blast celebratory confetti upon successful booking!
     confetti({
-      particleCount: 100,
-      spread: 70,
+      particleCount: 120,
+      spread: 80,
       origin: { y: 0.6 },
       colors: ['#e50914', '#d4af37', '#ffffff', '#22c55e'],
     });
@@ -49,12 +53,52 @@ const BookingConfirmation = () => {
     window.print();
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      setDownloading(true);
+      const ticketElement = document.getElementById('cinema-ticket-card');
+      if (!ticketElement) {
+        window.print();
+        return;
+      }
+
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const canvas = await html2canvas(ticketElement, {
+        scale: 2,
+        backgroundColor: '#0c0c16',
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a5',
+      });
+
+      const imgWidth = 148;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 10, imgWidth, imgHeight);
+      pdf.save(`IMovies-Ticket-${booking.bookingCode}.pdf`);
+      toast.success('Ticket PDF downloaded successfully!');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      window.print();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading || !booking) {
     return <Spinner text="Loading ticket details..." />;
   }
 
   const movie = booking.show?.movie || {};
   const theatre = booking.show?.theatre || {};
+  const showDate = booking.show?.showDate || booking.show?.date || '';
+  const showTime = booking.show?.showTime || booking.show?.startTime || '';
 
   return (
     <div className="booking-confirmation-page container py-5">
@@ -67,12 +111,17 @@ const BookingConfirmation = () => {
             </div>
             <h1 className="font-heading text-white fs-2 mb-1">Booking Confirmed!</h1>
             <p className="text-muted small">
-              A copy of your ticket and booking code has been saved to your account.
+              A copy of your ticket and signed digital QR pass has been saved to your account.
             </p>
           </div>
 
           {/* Cinematic Ticket Card */}
-          <div className="cinema-ticket p-4 p-md-5 mb-4 shadow-lg border border-secondary border-opacity-50">
+          <div
+            id="cinema-ticket-card"
+            ref={ticketRef}
+            className="cinema-ticket p-4 p-md-5 mb-4 shadow-lg border border-secondary border-opacity-50"
+            style={{ backgroundColor: '#0c0c16' }}
+          >
             {/* Notches for authentic ticket look */}
             <div className="ticket-notch-left"></div>
             <div className="ticket-notch-right"></div>
@@ -83,11 +132,11 @@ const BookingConfirmation = () => {
                 <div className="p-1 rounded bg-danger text-white">
                   <Film size={18} />
                 </div>
-                <span className="font-display fs-4 text-white fw-bold tracking-wider">IMOVIES PASS</span>
+                <span className="font-display fs-4 text-white fw-bold tracking-wider">IMOVIES E-PASS</span>
               </div>
               <div className="text-end">
-                <span className="badge bg-success text-uppercase px-2 py-1">Confirmed</span>
-                <div className="text-muted small font-monospace mt-1">{booking.bookingCode}</div>
+                <span className="badge bg-success text-uppercase px-2 py-1">Confirmed & Paid</span>
+                <div className="text-warning small font-monospace mt-1 fw-bold">{booking.bookingCode}</div>
               </div>
             </div>
 
@@ -95,7 +144,7 @@ const BookingConfirmation = () => {
             <div className="row g-4 align-items-center mb-4">
               <div className="col-sm-4 text-center text-sm-start">
                 <img
-                  src={movie.poster}
+                  src={movie.poster || 'https://via.placeholder.com/300x450'}
                   alt={movie.title}
                   className="rounded-3 shadow w-100"
                   style={{ maxHeight: '220px', objectFit: 'cover', maxWidth: '160px' }}
@@ -105,7 +154,7 @@ const BookingConfirmation = () => {
               <div className="col-sm-8 text-white">
                 <h3 className="font-heading fs-4 fw-bold mb-1 text-danger">{movie.title}</h3>
                 <div className="text-muted small mb-3">
-                  {movie.certificate} • {movie.language} • {movie.duration} mins • {booking.show?.format || '2D'}
+                  {movie.certification || movie.certificate} • {movie.language} • {movie.runtime || movie.duration} mins • {booking.show?.format || '2D'}
                 </div>
 
                 <div className="d-flex flex-column gap-2 small">
@@ -118,12 +167,12 @@ const BookingConfirmation = () => {
 
                   <div className="d-flex align-items-center gap-2">
                     <Calendar size={16} className="text-danger flex-shrink-0" />
-                    <span>{booking.show?.date}</span>
+                    <span>{showDate}</span>
                   </div>
 
                   <div className="d-flex align-items-center gap-2">
                     <Clock size={16} className="text-danger flex-shrink-0" />
-                    <span className="text-white fw-bold">{booking.show?.startTime}</span>
+                    <span className="text-white fw-bold">{showTime} (Asia/Kolkata)</span>
                   </div>
                 </div>
               </div>
@@ -145,34 +194,36 @@ const BookingConfirmation = () => {
 
                   <div className="col-6">
                     <span className="text-muted d-block">Amount Paid</span>
-                    <strong className="text-danger fs-6">₹{booking.totalAmount.toFixed(2)}</strong>
+                    <strong className="text-danger fs-6">{formatINR(booking.totalAmount)}</strong>
                   </div>
 
                   <div className="col-6 mt-2">
                     <span className="text-muted d-block">Booking Reference</span>
-                    <span className="text-white font-monospace">{booking.bookingCode}</span>
+                    <span className="text-warning font-monospace fw-bold">{booking.bookingCode}</span>
                   </div>
 
                   <div className="col-6 mt-2">
-                    <span className="text-muted d-block">Payment Method</span>
-                    <span className="text-white text-capitalize">{booking.payment?.method || 'Card'}</span>
+                    <span className="text-muted d-block">Payment Mode</span>
+                    <span className="text-white text-capitalize">
+                      {booking.payment?.method === 'phonepe_qr' ? 'PhonePe UPI QR' : booking.payment?.method || 'Card'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* QR Code */}
+              {/* Signed Cryptographic QR Code */}
               <div className="col-sm-4 text-center">
-                {booking.qrData && (
+                {booking.qrCode || booking.qrData ? (
                   <div className="d-inline-block p-2 bg-white rounded-3 shadow">
                     <img
-                      src={booking.qrData}
+                      src={booking.qrCode || booking.qrData}
                       alt="Booking QR Code"
-                      style={{ width: '100px', height: '100px' }}
+                      style={{ width: '110px', height: '110px' }}
                     />
                   </div>
-                )}
+                ) : null}
                 <div className="text-muted small mt-1" style={{ fontSize: '0.65rem' }}>
-                  Scan at cinema turnstile
+                  Cryptographically Signed QR • Single-Use
                 </div>
               </div>
             </div>
@@ -181,19 +232,32 @@ const BookingConfirmation = () => {
           {/* Action Buttons */}
           <div className="d-flex flex-wrap justify-content-center align-items-center gap-3">
             <button
+              onClick={handleDownloadPDF}
+              disabled={downloading}
+              className="btn btn-danger d-flex align-items-center gap-2 px-4 py-2 fw-bold shadow"
+            >
+              {downloading ? (
+                <span className="spinner-border spinner-border-sm" role="status" />
+              ) : (
+                <Download size={18} />
+              )}
+              <span>Download PDF Ticket</span>
+            </button>
+
+            <button
               onClick={handlePrint}
-              className="btn btn-outline-cinema d-flex align-items-center gap-2 px-4 py-2"
+              className="btn btn-outline-light d-flex align-items-center gap-2 px-4 py-2"
             >
               <Printer size={18} />
-              <span>Print Ticket</span>
+              <span>Print</span>
             </button>
 
             <Link
               to="/bookings"
-              className="btn btn-cinema d-flex align-items-center gap-2 px-4 py-2"
+              className="btn btn-outline-secondary text-light d-flex align-items-center gap-2 px-4 py-2"
             >
               <Ticket size={18} />
-              <span>View in My Bookings</span>
+              <span>My Bookings</span>
             </Link>
           </div>
         </div>
@@ -203,4 +267,3 @@ const BookingConfirmation = () => {
 };
 
 export default BookingConfirmation;
-

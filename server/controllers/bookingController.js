@@ -149,7 +149,7 @@ exports.getMyBookings = async (req, res, next) => {
 
     bookings.forEach((b) => {
       const showDate = (b.show && (b.show.showDate || b.show.date)) || '';
-      if (showDate >= todayStr && b.status === 'confirmed') {
+      if (b.status === 'payment_under_review' || (showDate >= todayStr && b.status === 'confirmed')) {
         upcoming.push(b);
       } else {
         past.push(b);

@@ -142,6 +142,7 @@ app.use('/api/v1/reviews', require('./routes/reviewRoutes'));
 app.use('/api/v1/admin', require('./routes/adminRoutes'));
 app.use('/api/v1/notifications', require('./routes/notificationRoutes'));
 app.use('/api/v1/cities', require('./routes/cityRoutes'));
+app.use('/api/v1/tickets', require('./routes/ticketRoutes'));
 
 // Background Cron Jobs
 let cronJob = null;

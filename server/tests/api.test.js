@@ -374,3 +374,175 @@ describe('7. City Geolocation & Detection APIs (Section 16)', () => {
     expect(res.body.data.city.name).toBe('Bhilai');
   });
 });
+
+describe('8. Ticket QR Cryptographic Verification (Section 5.1)', () => {
+  let confirmedBookingToken;
+  let confirmedBookingCode;
+
+  beforeAll(async () => {
+    // Fetch user confirmed booking to get signed ticket token
+    const res = await request(app)
+      .get('/api/v1/bookings/my')
+      .set('Authorization', `Bearer ${userToken}`);
+    const bookings = res.body.data.all || [];
+    const confirmed = bookings.find((b) => b.status === 'confirmed');
+    if (confirmed) {
+      confirmedBookingCode = confirmed.bookingCode;
+      confirmedBookingToken = confirmed.ticketToken;
+    }
+  });
+
+  it('should verify ticket and mark as used for single entry', async () => {
+    const param = confirmedBookingToken
+      ? `token=${encodeURIComponent(confirmedBookingToken)}`
+      : `bookingCode=${confirmedBookingCode}`;
+    const res = await request(app)
+      .get(`/api/v1/tickets/verify?${param}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.state).toBe('valid');
+    expect(res.body.data.message).toContain('ENTRY GRANTED');
+  });
+
+  it('should reject already used ticket on second scan (Single-Use Enforcement)', async () => {
+    const param = confirmedBookingToken
+      ? `token=${encodeURIComponent(confirmedBookingToken)}`
+      : `bookingCode=${confirmedBookingCode}`;
+    const res = await request(app)
+      .get(`/api/v1/tickets/verify?${param}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.state).toBe('already_used');
+    expect(res.body.data.message).toContain('ALREADY BEEN USED');
+  });
+
+  it('should reject invalid or tampered ticket token', async () => {
+    const res = await request(app)
+      .get('/api/v1/tickets/verify?token=tampered_fake_crypto_token_value')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.state).toBe('invalid');
+  });
+});
+
+describe('9. PhonePe QR Manual Verification Flow (Section 5.2)', () => {
+  let manualShowId;
+  let manualSeatNumbers = [];
+  let manualBookingId;
+  const testUtr = '429182736451';
+
+  it('should lock seats and create booking for manual PhonePe flow', async () => {
+    const showsRes = await request(app).get('/api/v1/shows');
+    const shows = showsRes.body.data.shows || [];
+    const openShow = shows.find((s) => !s.isPast) || shows[shows.length - 1];
+    manualShowId = openShow._id;
+
+    const showDetails = await request(app).get(`/api/v1/shows/${manualShowId}`);
+    const available = showDetails.body.data.seats.filter((s) => s.status === 'available');
+    manualSeatNumbers = [available[available.length - 1].seatNumber];
+
+    await request(app)
+      .post(`/api/v1/shows/${manualShowId}/lock-seats`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ seatNumbers: manualSeatNumbers });
+
+    const bookingRes = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        showId: manualShowId,
+        seatNumbers: manualSeatNumbers,
+      });
+
+    manualBookingId = bookingRes.body.data.booking._id;
+    expect(bookingRes.status).toBe(201);
+  });
+
+  it('should reject invalid UTR format (< 12 digits or non-numeric)', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/submit-manual-qr')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        bookingId: manualBookingId,
+        utrNumber: '12345', // only 5 digits
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('should submit valid 12-digit UTR and transition to payment_under_review', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/submit-manual-qr')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        bookingId: manualBookingId,
+        utrNumber: testUtr,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.booking.status).toBe('payment_under_review');
+    expect(res.body.data.booking.manualPayment.utrNumber).toBe(testUtr);
+  });
+
+  it('should reject duplicate submission of the same UTR (unique constraint)', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/submit-manual-qr')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({
+        bookingId: manualBookingId,
+        utrNumber: testUtr,
+      });
+
+    expect([400, 409]).toContain(res.status);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('should list pending payments in admin queue', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/pending-payments')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const found = res.body.data.pendingBookings.find((b) => b._id === manualBookingId);
+    expect(found).toBeDefined();
+    expect(found.manualPayment.utrNumber).toBe(testUtr);
+  });
+
+  it('should allow admin to approve payment, confirm booking, and generate signed QR', async () => {
+    const res = await request(app)
+      .post(`/api/v1/admin/payments/${manualBookingId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.booking.status).toBe('confirmed');
+    expect(res.body.data.booking.ticketToken).toBeDefined();
+  });
+});
+
+describe('10. Real Trending & Search Suggestions (Section 11)', () => {
+  it('should fetch real data-driven trending movies with explicit basis label', async () => {
+    const res = await request(app).get('/api/v1/movies/trending');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.movies.length).toBeGreaterThan(0);
+    expect(res.body.data.rankingBasis).toContain('Ranked by bookings in last 7 days');
+  });
+
+  it('should provide live search suggestions for movies, cinemas, and genres', async () => {
+    const res = await request(app).get('/api/v1/movies/suggestions?q=Drishyam');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.movies.length).toBeGreaterThan(0);
+    expect(res.body.data.movies[0].title).toContain('Drishyam');
+  });
+});

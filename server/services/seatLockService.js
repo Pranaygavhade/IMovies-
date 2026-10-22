@@ -132,10 +132,10 @@ const releaseExpiredLocks = async () => {
       }
     }
 
-    // 2. Mark pending bookings that passed their expiry as 'expired'
+    // 2. Mark pending or review bookings that passed their expiry as 'expired'
     await Booking.updateMany(
       {
-        status: 'pending',
+        status: { $in: ['pending', 'payment_under_review'] },
         expiresAt: { $lt: now },
       },
       {

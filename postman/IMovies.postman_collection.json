@@ -133,16 +133,39 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/movies?search=&genre=&city=&status=now_showing&page=1&limit=12",
+              "raw": "{{baseUrl}}/movies?search=&genre=&city=Bhilai&language=&status=now_showing&sortBy=popularity&page=1&limit=12",
               "host": ["{{baseUrl}}"],
               "path": ["movies"],
               "query": [
                 { "key": "search", "value": "" },
                 { "key": "genre", "value": "" },
-                { "key": "city", "value": "" },
+                { "key": "city", "value": "Bhilai" },
+                { "key": "language", "value": "" },
                 { "key": "status", "value": "now_showing" },
+                { "key": "sortBy", "value": "popularity" },
                 { "key": "page", "value": "1" },
                 { "key": "limit", "value": "12" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Trending Movies",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/movies/trending"
+          }
+        },
+        {
+          "name": "Get Search Suggestions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/movies/suggestions?q=drishyam",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies", "suggestions"],
+              "query": [
+                { "key": "q", "value": "drishyam" }
               ]
             }
           }
@@ -165,7 +188,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Tron: Ares\",\n  \"description\": \"A highly sophisticated Program called Ares is sent from the digital world into the real world on a dangerous mission.\",\n  \"genre\": [\"Sci-Fi\", \"Action\"],\n  \"language\": \"English\",\n  \"duration\": 135,\n  \"rating\": 8.1,\n  \"releaseDate\": \"2025-10-10\",\n  \"poster\": \"https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80\",\n  \"certificate\": \"UA\",\n  \"status\": \"upcoming\"\n}"
+              "raw": "{\n  \"title\": \"Tron: Ares\",\n  \"description\": \"A highly sophisticated Program called Ares is sent from the digital world into the real world on a dangerous mission.\",\n  \"genre\": [\"Sci-Fi\", \"Action\"],\n  \"language\": \"English\",\n  \"duration\": 135,\n  \"rating\": 8.1,\n  \"releaseDate\": \"2026-10-10\",\n  \"poster\": \"https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80\",\n  \"certificate\": \"UA\",\n  \"status\": \"upcoming\"\n}"
             }
           }
         }
@@ -197,7 +220,7 @@
           "name": "Get Shows (by Movie & Date)",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/shows?movie=&date=&city="
+            "url": "{{baseUrl}}/shows?movie=&date=&city=Bhilai"
           }
         },
         {
@@ -243,7 +266,7 @@
       "name": "Bookings & Payments",
       "item": [
         {
-          "name": "Create Booking",
+          "name": "Create Booking (Instant / Gateway)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/bookings",
@@ -254,6 +277,51 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"showId\": \":showId\",\n  \"seatNumbers\": [\"C3\", \"C4\"],\n  \"paymentMethod\": \"card\",\n  \"paymentDetails\": {\n    \"cardNumber\": \"4242424242424242\",\n    \"expMonth\": \"12\",\n    \"expYear\": \"28\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Submit Manual PhonePe QR Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/payments/submit-manual-qr",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showId\": \":showId\",\n  \"seatNumbers\": [\"C3\", \"C4\"],\n  \"utrNumber\": \"123456789012\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Initiate Online Gateway Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/payments/initiate",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \":bookingId\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify Online Gateway Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/payments/verify",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \":bookingId\",\n  \"razorpay_order_id\": \"order_mock_123\",\n  \"razorpay_payment_id\": \"pay_mock_123\",\n  \"razorpay_signature\": \"mock_sig_123\"\n}"
             }
           }
         },
@@ -271,6 +339,27 @@
             "method": "PUT",
             "url": "{{baseUrl}}/bookings/:id/cancel",
             "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets & QR Verification",
+      "item": [
+        {
+          "name": "Verify Ticket (Admin/Staff Entry Gate)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/tickets/verify?token=:signedToken&bookingCode=:bookingCode",
+              "host": ["{{baseUrl}}"],
+              "path": ["tickets", "verify"],
+              "query": [
+                { "key": "token", "value": ":signedToken" },
+                { "key": "bookingCode", "value": ":bookingCode" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
           }
         }
       ]
@@ -300,6 +389,69 @@
             "method": "GET",
             "url": "{{baseUrl}}/admin/bookings",
             "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Get All Payments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/payments",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Sync Movies via TMDB",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/sync/movies",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Generate Shows for Theatres",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/generate-shows",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Export Revenue Report CSV",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/reports/revenue-csv",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Get Pending Payments for Manual Review",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/pending-payments",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Approve Manual PhonePe Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/payments/:bookingId/approve",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "Reject Manual PhonePe Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/payments/:bookingId/reject",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"UTR not found in merchant bank account\"\n}"
+            }
           }
         }
       ]
