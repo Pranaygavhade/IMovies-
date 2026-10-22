@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { Spinner } from '../components/common/Loader';
+import MoviePoster from '../components/common/MoviePoster';
 import { formatINR } from '../utils/dateUtils';
 import { toast } from 'react-toastify';
 
@@ -143,17 +144,18 @@ const BookingConfirmation = () => {
             {/* Main Ticket Body */}
             <div className="row g-4 align-items-center mb-4">
               <div className="col-sm-4 text-center text-sm-start">
-                <img
-                  src={movie.poster || 'https://via.placeholder.com/300x450'}
-                  alt={movie.title}
-                  className="rounded-3 shadow w-100"
-                  style={{ maxHeight: '220px', objectFit: 'cover', maxWidth: '160px' }}
+                <MoviePoster
+                  src={movie.poster}
+                  title={movie.title}
+                  certificate={movie.certification || movie.certificate}
+                  language={movie.language}
+                  style={{ maxHeight: '220px', maxWidth: '160px', margin: '0 auto' }}
                 />
               </div>
 
               <div className="col-sm-8 text-white">
                 <h3 className="font-heading fs-4 fw-bold mb-1 text-danger">{movie.title}</h3>
-                <div className="text-muted small mb-3">
+                <div className="text-secondary small mb-3">
                   {movie.certification || movie.certificate} • {movie.language} • {movie.runtime || movie.duration} mins • {booking.show?.format || '2D'}
                 </div>
 
@@ -181,49 +183,74 @@ const BookingConfirmation = () => {
             {/* Perforated Divider */}
             <div className="ticket-divider"></div>
 
-            {/* Ticket Footer Details with QR Code */}
+            {/* Ticket Footer Details with Custom QR & Signed Entry Gate Pass */}
             <div className="row g-3 align-items-center">
-              <div className="col-sm-8">
+              <div className="col-md-7">
                 <div className="row g-2 small">
                   <div className="col-6">
-                    <span className="text-muted d-block">Seats ({booking.seats.length})</span>
+                    <span className="text-secondary d-block">Seats ({booking.seats.length})</span>
                     <strong className="text-white fs-6">
                       {booking.seats.map((s) => s.seatNumber).join(', ')}
                     </strong>
                   </div>
 
                   <div className="col-6">
-                    <span className="text-muted d-block">Amount Paid</span>
+                    <span className="text-secondary d-block">Amount Paid</span>
                     <strong className="text-danger fs-6">{formatINR(booking.totalAmount)}</strong>
                   </div>
 
                   <div className="col-6 mt-2">
-                    <span className="text-muted d-block">Booking Reference</span>
+                    <span className="text-secondary d-block">Booking Reference</span>
                     <span className="text-warning font-monospace fw-bold">{booking.bookingCode}</span>
                   </div>
 
                   <div className="col-6 mt-2">
-                    <span className="text-muted d-block">Payment Mode</span>
+                    <span className="text-secondary d-block">Payment Mode</span>
                     <span className="text-white text-capitalize">
-                      {booking.payment?.method === 'phonepe_qr' ? 'PhonePe UPI QR' : booking.payment?.method || 'Card'}
+                      {booking.payment?.method === 'phonepe_qr' ? 'PhonePe UPI QR' : booking.payment?.method || 'Online'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Signed Cryptographic QR Code */}
-              <div className="col-sm-4 text-center">
-                {booking.qrCode || booking.qrData ? (
-                  <div className="d-inline-block p-2 bg-white rounded-3 shadow">
-                    <img
-                      src={booking.qrCode || booking.qrData}
-                      alt="Booking QR Code"
-                      style={{ width: '110px', height: '110px' }}
-                    />
+              {/* QR Passes: Custom Ticket QR + Gate Token Pass */}
+              <div className="col-md-5 text-center">
+                <div className="d-flex justify-content-center align-items-center gap-3">
+                  {/* Custom Ticket QR Image */}
+                  <div className="text-center">
+                    <div className="p-2 bg-white rounded-3 shadow-sm d-inline-block">
+                      <img
+                        src="/assets/custom-ticket-qr.png"
+                        alt="Cinema Ticket QR"
+                        className="img-fluid"
+                        style={{ width: '92px', height: '92px', objectFit: 'contain', imageRendering: 'crisp-edges' }}
+                      />
+                    </div>
+                    <div className="text-secondary small mt-1 fw-bold" style={{ fontSize: '0.65rem' }}>
+                      Ticket Pass
+                    </div>
                   </div>
-                ) : null}
-                <div className="text-muted small mt-1" style={{ fontSize: '0.65rem' }}>
-                  Cryptographically Signed QR • Single-Use
+
+                  {/* Cryptographic Entry Gate QR */}
+                  {(booking.qrCode || booking.qrData) && (
+                    <div className="text-center">
+                      <div className="p-2 bg-white rounded-3 shadow-sm d-inline-block">
+                        <img
+                          src={booking.qrCode || booking.qrData}
+                          alt="Security Gate QR"
+                          className="img-fluid"
+                          style={{ width: '92px', height: '92px', objectFit: 'contain' }}
+                        />
+                      </div>
+                      <div className="text-success small mt-1 fw-bold" style={{ fontSize: '0.65rem' }}>
+                        Gate Scan
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-secondary small mt-2" style={{ fontSize: '0.65rem' }}>
+                  Single-Use Entry Pass • Verified
                 </div>
               </div>
             </div>

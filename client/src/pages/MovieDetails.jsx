@@ -22,6 +22,8 @@ import {
 import { fetchMovieById } from '../redux/slices/movieSlice';
 import { Spinner } from '../components/common/Loader';
 import api from '../api/axios';
+import UserAvatar from '../components/common/UserAvatar';
+import MoviePoster from '../components/common/MoviePoster';
 import {
   getNext7DaysKolkata,
   getTodayKolkata,
@@ -202,7 +204,12 @@ const MovieDetails = () => {
           <div className="col-md-4 col-lg-3">
             <div className="glass-card p-2 shadow-lg rounded-4 overflow-hidden">
               <div className="poster-container position-relative">
-                <img src={currentMovie.poster} alt={currentMovie.title} className="poster-img" />
+                <MoviePoster
+                  src={currentMovie.poster}
+                  title={currentMovie.title}
+                  certificate={currentMovie.certificate || currentMovie.certification}
+                  language={currentMovie.language}
+                />
               </div>
               <div className="d-flex gap-2 mt-2">
                 {currentMovie.trailerUrl && (
@@ -571,15 +578,7 @@ const MovieDetails = () => {
                     <div key={rev._id} className="glass-panel p-3">
                       <div className="d-flex justify-content-between align-items-center mb-2">
                         <div className="d-flex align-items-center gap-2">
-                          <img
-                            src={
-                              rev.user?.avatar ||
-                              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
-                            }
-                            alt={rev.user?.name || 'Reviewer'}
-                            className="rounded-circle border border-secondary"
-                            style={{ width: '34px', height: '34px', objectFit: 'cover' }}
-                          />
+                          <UserAvatar user={rev.user} size={34} showBorder={false} />
                           <div>
                             <div className="text-white fw-bold small">
                               {rev.user?.name || 'Cinema Fan'}

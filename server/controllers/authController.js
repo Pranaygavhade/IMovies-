@@ -112,7 +112,9 @@ exports.updateProfile = async (req, res, next) => {
 
     if (name) user.name = name;
     if (phone !== undefined) user.phone = phone;
-    if (avatar) user.avatar = avatar;
+    if (avatar !== undefined) {
+      user.avatar = (avatar && avatar.trim() !== '') ? avatar.trim() : null;
+    }
 
     await user.save();
 
@@ -129,6 +131,76 @@ exports.updateProfile = async (req, res, next) => {
         },
       },
       'Profile updated successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Upload user profile avatar
+// @route   POST /api/v1/auth/avatar
+// @access  Private
+exports.uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Please provide an image file (jpeg, jpg, png, webp)', 400);
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    const avatarUrl = `/uploads/${req.file.filename}`;
+    user.avatar = avatarUrl;
+    await user.save();
+
+    return sendSuccess(
+      res,
+      {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          avatar: user.avatar,
+        },
+        avatarUrl,
+      },
+      'Profile photo uploaded successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Remove user profile avatar
+// @route   DELETE /api/v1/auth/avatar
+// @access  Private
+exports.removeAvatar = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    user.avatar = null;
+    await user.save();
+
+    return sendSuccess(
+      res,
+      {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          avatar: null,
+        },
+      },
+      'Profile photo removed successfully'
     );
   } catch (error) {
     next(error);

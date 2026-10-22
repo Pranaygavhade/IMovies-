@@ -21,6 +21,7 @@ import {
   Smartphone,
   Tag,
   Building,
+  AlertCircle,
 } from 'lucide-react';
 import { logout, updateUserProfile } from '../../redux/slices/authSlice';
 import {
@@ -31,6 +32,8 @@ import {
 } from '../../redux/slices/movieSlice';
 import { fetchNotifications, markNotificationAsRead } from '../../redux/slices/notificationSlice';
 import api from '../../api/axios';
+import UserAvatar from './UserAvatar';
+import MoviePoster from './MoviePoster';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -55,15 +58,24 @@ const Navbar = () => {
 
   const cityDropdownRef = useRef(null);
 
+  const [locationError, setLocationError] = useState(null);
+
   useEffect(() => {
     dispatch(fetchCities());
     if (isAuthenticated) {
       dispatch(fetchNotifications());
     }
 
-    // Auto-detect on first load if city not in localStorage
-    if (!localStorage.getItem('imovies_city')) {
-      handleAutoDetectLocation();
+    // Only auto-query if user already granted geolocation permission in browser
+    if (!localStorage.getItem('imovies_city') && typeof navigator !== 'undefined' && navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((result) => {
+          if (result.state === 'granted') {
+            handleAutoDetectLocation();
+          }
+        })
+        .catch(() => {});
     }
   }, [isAuthenticated, dispatch]);
 
@@ -113,6 +125,7 @@ const Navbar = () => {
     dispatch(setSelectedCity(cityName));
     setCityDropdownOpen(false);
     setCitySearchFilter('');
+    setLocationError(null);
 
     // If logged in, update user profile city
     if (isAuthenticated) {
@@ -123,40 +136,8 @@ const Navbar = () => {
   };
 
   const handleAutoDetectLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          try {
-            const res = await dispatch(
-              detectNearestCity({ lat: latitude, lng: longitude })
-            ).unwrap();
-            const nearestName = res.city?.name || 'Bhilai';
-            toast.success(`Location detected: ${nearestName} (${res.distanceKm} km away)`);
-          } catch {
-            dispatch(detectCityByIp());
-          }
-        },
-        () => {
-          // Fallback to IP detection
-          dispatch(detectCityByIp());
-        },
-        { timeout: 7000 }
-      );
-    } else {
-      dispatch(detectCityByIp());
-    }
-  };
+    if (!('geolocation' in navigator)) return;
 
-  const handleDetectLocationClick = (e) => {
-    e.stopPropagation();
-    if (!('geolocation' in navigator)) {
-      toast.warn('Geolocation not supported by your browser. Using IP detection.');
-      dispatch(detectCityByIp());
-      return;
-    }
-
-    toast.info('Detecting your current location...');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
@@ -165,16 +146,63 @@ const Navbar = () => {
             detectNearestCity({ lat: latitude, lng: longitude })
           ).unwrap();
           const nearestName = res.city?.name || 'Bhilai';
-          toast.success(`Location detected: ${nearestName} (${res.distanceKm} km away)`);
+          const areaInfo = res.detectedArea ? ` in ${res.detectedArea}` : '';
+          toast.success(`📍 Location detected${areaInfo}. Cinema hub: ${nearestName} (${res.distanceKm} km away)`);
+        } catch {
+          // Gracefully maintain selected hub without fake popups
+        }
+      },
+      () => {},
+      { timeout: 8000 }
+    );
+  };
+
+  const handleDetectLocationClick = (e) => {
+    e.stopPropagation();
+    setLocationError(null);
+
+    if (!('geolocation' in navigator)) {
+      const msg = 'Geolocation is not supported by your browser. Please select your city from the list below.';
+      setLocationError(msg);
+      toast.warn(msg);
+      return;
+    }
+
+    toast.info('Detecting your location via GPS...');
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await dispatch(
+            detectNearestCity({ lat: latitude, lng: longitude })
+          ).unwrap();
+          const nearestName = res.city?.name || 'Bhilai';
+          const areaInfo = res.detectedArea ? ` in ${res.detectedArea}` : '';
+
+          if (res.inRange) {
+            toast.success(`📍 Detected${areaInfo}. Connected to ${nearestName} (${res.distanceKm} km away).`);
+          } else {
+            toast.info(`📍 Detected${areaInfo}. Nearest supported cinema hub is ${nearestName} (${res.distanceKm} km away).`);
+          }
+
           setCityDropdownOpen(false);
         } catch {
-          toast.error('Could not find nearest city. Falling back to default.');
-          dispatch(detectCityByIp());
+          const msg = 'Could not reverse-geocode your coordinates. Please pick your city below.';
+          setLocationError(msg);
+          toast.warn(msg);
         }
       },
       (err) => {
-        toast.warn(`Location permission not granted. Defaulting to Bhilai, CG.`);
-        dispatch(detectCityByIp());
+        let msg = 'Could not detect location. Please select your city manually.';
+        if (err.code === 1) {
+          msg = 'Location permission was denied. Please select your city from the list below.';
+        } else if (err.code === 2) {
+          msg = 'GPS coordinates are currently unavailable. Please select your city manually.';
+        } else if (err.code === 3) {
+          msg = 'Location request timed out. Please select your city manually.';
+        }
+        setLocationError(msg);
+        toast.warn(msg);
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
@@ -232,13 +260,48 @@ const Navbar = () => {
               {/* Detect my location button */}
               <button
                 type="button"
-                className="btn btn-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-2 mb-3 py-2 fw-semibold"
+                className="btn btn-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-2 mb-2 py-2 fw-semibold"
                 onClick={handleDetectLocationClick}
                 disabled={detectingLocation}
               >
                 <Navigation size={15} className={detectingLocation ? 'animate-spin' : ''} />
-                <span>{detectingLocation ? 'Locating...' : 'Detect My Location'}</span>
+                <span>{detectingLocation ? 'Detecting GPS Location...' : 'Detect My Location'}</span>
               </button>
+
+              {/* Location Error Message if permission denied or unavailable */}
+              {locationError && (
+                <div
+                  className="alert alert-warning py-2 px-3 small rounded-2 mb-2 d-flex align-items-start gap-2 border-0"
+                  style={{ backgroundColor: 'rgba(217, 119, 6, 0.15)', color: '#fbbf24', fontSize: '0.78rem' }}
+                >
+                  <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+                  <span>{locationError}</span>
+                </div>
+              )}
+
+              {/* Quick Cinema Hub Pills */}
+              <div className="mb-2">
+                <div className="text-secondary small fw-semibold mb-1" style={{ fontSize: '0.7rem' }}>
+                  Popular Cinema Hubs:
+                </div>
+                <div className="d-flex flex-wrap gap-1">
+                  {['Bhilai', 'Durg', 'Raipur', 'Mumbai', 'Bengaluru', 'Delhi'].map((quickCity) => (
+                    <button
+                      key={quickCity}
+                      type="button"
+                      onClick={() => handleCitySelect(quickCity)}
+                      className={`btn btn-xs py-0 px-2 rounded-pill small border ${
+                        selectedCity.toLowerCase() === quickCity.toLowerCase()
+                          ? 'btn-danger text-white border-danger'
+                          : 'btn-dark text-secondary border-secondary border-opacity-50'
+                      }`}
+                      style={{ fontSize: '0.72rem' }}
+                    >
+                      {quickCity}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* City search input */}
               <div className="position-relative mb-2">
@@ -350,11 +413,12 @@ const Navbar = () => {
                           navigate(`/movies/${m._id}`);
                         }}
                       >
-                        <img
-                          src={m.poster || 'https://via.placeholder.com/60'}
-                          alt={m.title}
-                          className="rounded"
-                          style={{ width: '32px', height: '46px', objectFit: 'cover' }}
+                        <MoviePoster
+                          src={m.poster}
+                          title={m.title}
+                          certificate={m.certification || 'UA'}
+                          language={m.language}
+                          style={{ width: '32px', height: '46px', minWidth: '32px' }}
                         />
                         <div className="text-truncate">
                           <div className="fw-semibold small text-truncate text-white">{m.title}</div>
@@ -571,15 +635,7 @@ const Navbar = () => {
                   className="btn btn-link text-decoration-none d-flex align-items-center gap-2 p-1 text-light border-0"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 >
-                  <img
-                    src={
-                      user?.avatar ||
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
-                    }
-                    alt={user?.name}
-                    className="rounded-circle border border-danger"
-                    style={{ width: '38px', height: '38px', objectFit: 'cover' }}
-                  />
+                  <UserAvatar user={user} size={38} />
                   <div className="text-start d-none d-sm-block">
                     <div
                       className="fw-semibold small text-white text-truncate"

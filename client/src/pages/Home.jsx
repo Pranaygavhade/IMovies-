@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { fetchMovies, setSelectedCity } from '../redux/slices/movieSlice';
 import { MovieCardSkeleton } from '../components/common/Loader';
+import MoviePoster from '../components/common/MoviePoster';
 import api from '../api/axios';
 import { getTodayKolkata, formatINR } from '../utils/dateUtils';
 
@@ -457,12 +458,12 @@ const Home = () => {
                   <div className="glass-card p-3 h-100 d-flex flex-column border border-secondary border-opacity-25 hover-border-danger transition-all">
                     {/* Poster */}
                     <div className="poster-container mb-3 position-relative overflow-hidden rounded-3">
-                      <img
+                      <MoviePoster
                         src={movie.poster}
-                        alt={movie.title}
-                        className="poster-img w-100"
-                        loading="lazy"
-                        style={{ height: '320px', objectFit: 'cover' }}
+                        title={movie.title}
+                        certificate={movie.certificate}
+                        language={movie.language}
+                        style={{ height: '320px' }}
                       />
 
                       {/* Favorite Button with Instant Toast */}
@@ -617,11 +618,12 @@ const Home = () => {
                   >
                     #{idx + 1}
                   </div>
-                  <img
+                  <MoviePoster
                     src={movie.poster}
-                    alt={movie.title}
-                    className="rounded-2 shadow"
-                    style={{ width: '65px', height: '90px', objectFit: 'cover' }}
+                    title={movie.title}
+                    certificate={movie.certificate}
+                    language={movie.language}
+                    style={{ width: '65px', height: '90px', minWidth: '65px' }}
                   />
                   <div className="overflow-hidden flex-grow-1">
                     <Link
@@ -668,12 +670,12 @@ const Home = () => {
               <div key={movie._id} className="col-xl-3 col-lg-4 col-sm-6">
                 <div className="glass-card p-2 h-100 d-flex flex-column">
                   <div className="poster-container mb-3 position-relative rounded-3 overflow-hidden">
-                    <img
+                    <MoviePoster
                       src={movie.poster}
-                      alt={movie.title}
-                      className="poster-img w-100"
-                      loading="lazy"
-                      style={{ height: '300px', objectFit: 'cover' }}
+                      title={movie.title}
+                      certificate={movie.certificate}
+                      language={movie.language}
+                      style={{ height: '300px' }}
                     />
                     <div className="poster-overlay d-flex flex-column justify-content-between p-3">
                       <span className="badge bg-warning text-dark fw-bold align-self-start">
@@ -730,12 +732,12 @@ const Home = () => {
               <div key={movie._id} className="col-xl-3 col-lg-4 col-sm-6">
                 <div className="glass-card p-2 h-100 d-flex flex-column">
                   <div className="poster-container mb-3 position-relative rounded-3 overflow-hidden">
-                    <img
+                    <MoviePoster
                       src={movie.poster}
-                      alt={movie.title}
-                      className="poster-img w-100"
-                      loading="lazy"
-                      style={{ height: '300px', objectFit: 'cover' }}
+                      title={movie.title}
+                      certificate={movie.certificate}
+                      language={movie.language}
+                      style={{ height: '300px' }}
                     />
                     <div className="poster-overlay d-flex flex-column justify-content-between p-3">
                       <span className="badge bg-danger text-white fw-bold align-self-start">

@@ -47,9 +47,47 @@ exports.getNearestCity = async (req, res, next) => {
       return sendError(res, 'Invalid coordinates provided', 400);
     }
 
+    // Reverse geocode via OpenStreetMap Nominatim for human-readable locality
+    let detectedAreaName = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+      const geoRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}&zoom=10&addressdetails=1`,
+        {
+          headers: { 'User-Agent': 'IMovies-Ticket-Platform/1.0' },
+          signal: controller.signal,
+        }
+      );
+      clearTimeout(timeoutId);
+
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        const addr = geoData.address || {};
+        detectedAreaName =
+          addr.city ||
+          addr.town ||
+          addr.suburb ||
+          addr.district ||
+          addr.state_district ||
+          addr.county ||
+          addr.state ||
+          geoData.name ||
+          null;
+      }
+    } catch {
+      // Gracefully continue with nearest coordinate calculation if external reverse geocoding is slow/unreachable
+    }
+
     const cities = await City.find({ isActive: true });
     if (cities.length === 0) {
-      return sendSuccess(res, { city: { name: 'Bhilai', state: 'Chhattisgarh' }, distanceKm: 0 });
+      return sendSuccess(res, {
+        city: { name: 'Bhilai', state: 'Chhattisgarh' },
+        distanceKm: 0,
+        detectedArea: detectedAreaName || 'Bhilai',
+        inRange: true,
+      });
     }
 
     let nearestCity = null;
@@ -63,13 +101,20 @@ exports.getNearestCity = async (req, res, next) => {
       }
     }
 
+    const distanceKm = Math.round(minDistance * 10) / 10;
+    const inRange = distanceKm <= 120; // Within 120 km of a supported cinema hub
+
     return sendSuccess(
       res,
       {
         city: nearestCity,
-        distanceKm: Math.round(minDistance * 10) / 10,
+        distanceKm,
+        detectedArea: detectedAreaName,
+        inRange,
       },
-      'Nearest cinema hub found'
+      inRange
+        ? `Matched to nearest cinema hub: ${nearestCity.name}`
+        : `Nearest cinema hub is ${nearestCity.name} (${distanceKm} km away)`
     );
   } catch (error) {
     next(error);
@@ -88,9 +133,10 @@ exports.detectCityByIp = async (req, res, next) => {
       res,
       {
         city: city || { name: 'Bhilai', state: 'Chhattisgarh', lat: 21.2195, lng: 81.3227 },
-        detectedFrom: 'default_server_ip',
+        detectedFrom: 'fallback_default',
+        isDefaultFallback: true,
       },
-      'City detected'
+      'Default cinema hub loaded'
     );
   } catch (error) {
     next(error);

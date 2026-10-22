@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { Users, Search, ChevronLeft, Shield, User, CheckCircle, XCircle } from 'lucide-react';
 import api from '../api/axios';
 import { Spinner } from '../components/common/Loader';
+import UserAvatar from '../components/common/UserAvatar';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
@@ -83,12 +84,7 @@ const AdminUsers = () => {
                 <tr key={u._id} className="border-secondary">
                   <td>
                     <div className="d-flex align-items-center gap-3">
-                      <img
-                        src={u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
-                        alt={u.name}
-                        className="rounded-circle"
-                        style={{ width: '38px', height: '38px', objectFit: 'cover' }}
-                      />
+                      <UserAvatar user={u} size={38} showBorder={false} />
                       <div>
                         <div className="fw-bold text-white small">{u.name}</div>
                         <div className="text-muted small">{u.email}</div>

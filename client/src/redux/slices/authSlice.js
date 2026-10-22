@@ -54,6 +54,32 @@ export const updateUserProfile = createAsyncThunk(
   }
 );
 
+export const uploadUserAvatar = createAsyncThunk(
+  'auth/uploadUserAvatar',
+  async (formData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/auth/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data.user;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to upload photo');
+    }
+  }
+);
+
+export const removeUserAvatar = createAsyncThunk(
+  'auth/removeUserAvatar',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.delete('/auth/avatar');
+      return response.data.data.user;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to remove photo');
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   line: 'auth',
@@ -127,6 +153,16 @@ const authSlice = createSlice({
       })
       // Update profile
       .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.user = action.payload;
+        localStorage.setItem('imovies_user', JSON.stringify(action.payload));
+      })
+      // Upload avatar
+      .addCase(uploadUserAvatar.fulfilled, (state, action) => {
+        state.user = action.payload;
+        localStorage.setItem('imovies_user', JSON.stringify(action.payload));
+      })
+      // Remove avatar
+      .addCase(removeUserAvatar.fulfilled, (state, action) => {
         state.user = action.payload;
         localStorage.setItem('imovies_user', JSON.stringify(action.payload));
       });

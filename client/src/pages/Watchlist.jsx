@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { Heart, Film, Star, Clock, Trash2, Ticket, ChevronRight } from 'lucide-react';
 import api from '../api/axios';
 import { Spinner } from '../components/common/Loader';
+import MoviePoster from '../components/common/MoviePoster';
 
 const Watchlist = () => {
   const [favorites, setFavorites] = useState([]);
@@ -82,11 +83,12 @@ const Watchlist = () => {
                   {/* Poster */}
                   <div className="position-relative">
                     <Link to={`/movies/${movie._id}`}>
-                      <img
+                      <MoviePoster
                         src={movie.poster}
-                        alt={movie.title}
-                        className="w-100"
-                        style={{ height: '320px', objectFit: 'cover' }}
+                        title={movie.title}
+                        certificate={movie.certificate}
+                        language={movie.language}
+                        style={{ height: '320px' }}
                       />
                     </Link>
 

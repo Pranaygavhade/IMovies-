@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { Spinner } from '../components/common/Loader';
+import MoviePoster from '../components/common/MoviePoster';
 
 const AdminMovies = () => {
   const [movies, setMovies] = useState([]);
@@ -202,11 +203,12 @@ const AdminMovies = () => {
                 <tr key={movie._id} className="border-secondary">
                   <td>
                     <div className="d-flex align-items-center gap-3">
-                      <img
+                      <MoviePoster
                         src={movie.poster}
-                        alt={movie.title}
-                        className="rounded"
-                        style={{ width: '45px', height: '60px', objectFit: 'cover' }}
+                        title={movie.title}
+                        certificate={movie.certificate}
+                        language={movie.language}
+                        style={{ width: '45px', height: '60px', minWidth: '45px' }}
                       />
                       <div>
                         <div className="fw-bold text-white small">{movie.title}</div>

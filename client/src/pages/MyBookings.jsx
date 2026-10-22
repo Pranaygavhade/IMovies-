@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { fetchMyBookings, cancelBooking } from '../redux/slices/bookingSlice';
 import { Spinner } from '../components/common/Loader';
+import MoviePoster from '../components/common/MoviePoster';
 
 const MyBookings = () => {
   const dispatch = useDispatch();
@@ -119,11 +120,12 @@ const MyBookings = () => {
                 <div className="row g-4 align-items-center">
                   {/* Poster */}
                   <div className="col-md-2 col-sm-3 text-center">
-                    <img
+                    <MoviePoster
                       src={movie.poster}
-                      alt={movie.title}
-                      className="rounded-3 shadow w-100"
-                      style={{ maxHeight: '160px', objectFit: 'cover', maxWidth: '120px' }}
+                      title={movie.title}
+                      certificate={movie.certificate}
+                      language={movie.language}
+                      style={{ maxHeight: '160px', maxWidth: '120px', margin: '0 auto' }}
                     />
                   </div>
 
@@ -242,12 +244,34 @@ const MyBookings = () => {
               {selectedBookingForQr.show?.date} • {selectedBookingForQr.show?.startTime}
             </div>
 
-            <div className="p-3 bg-white rounded-3 d-inline-block shadow mb-3">
-              <img
-                src={selectedBookingForQr.qrData}
-                alt="QR Code"
-                style={{ width: '180px', height: '180px' }}
-              />
+            <div className="d-flex justify-content-center align-items-center gap-3 mb-3">
+              <div className="text-center">
+                <div className="p-2 bg-white rounded-3 shadow d-inline-block">
+                  <img
+                    src="/assets/custom-ticket-qr.png"
+                    alt="Custom Ticket QR"
+                    style={{ width: '120px', height: '120px', objectFit: 'contain', imageRendering: 'crisp-edges' }}
+                  />
+                </div>
+                <div className="text-secondary small mt-1 fw-bold" style={{ fontSize: '0.7rem' }}>
+                  Ticket Pass
+                </div>
+              </div>
+
+              {selectedBookingForQr.qrData && (
+                <div className="text-center">
+                  <div className="p-2 bg-white rounded-3 shadow d-inline-block">
+                    <img
+                      src={selectedBookingForQr.qrData}
+                      alt="Gate Verification QR"
+                      style={{ width: '120px', height: '120px', objectFit: 'contain' }}
+                    />
+                  </div>
+                  <div className="text-success small mt-1 fw-bold" style={{ fontSize: '0.7rem' }}>
+                    Gate Scan
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="font-monospace text-white fw-bold fs-5 mb-1">

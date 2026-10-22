@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { Search, Filter, Star, Clock, ChevronLeft, ChevronRight, X, Heart } from 'lucide-react';
 import { fetchMovies } from '../redux/slices/movieSlice';
 import { MovieCardSkeleton } from '../components/common/Loader';
+import MoviePoster from '../components/common/MoviePoster';
 import api from '../api/axios';
 
 const Movies = () => {
@@ -298,11 +299,11 @@ const Movies = () => {
               <div key={movie._id} className="col-xl-3 col-lg-4 col-sm-6">
                 <div className="glass-card p-2 h-100 d-flex flex-column">
                   <div className="poster-container mb-3 position-relative">
-                    <img
+                    <MoviePoster
                       src={movie.poster}
-                      alt={movie.title}
-                      className="poster-img"
-                      loading="lazy"
+                      title={movie.title}
+                      certificate={movie.certificate}
+                      language={movie.language}
                     />
 
                     {/* Favorite Heart Button */}

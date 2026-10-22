@@ -380,7 +380,7 @@ const seedDatabase = async () => {
       phone: '+91 98271 23456',
       role: 'admin',
       city: 'Bhilai',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      avatar: null,
     });
 
     const user1 = await User.create({
@@ -390,7 +390,7 @@ const seedDatabase = async () => {
       phone: '+91 98271 67890',
       role: 'user',
       city: 'Bhilai',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      avatar: null,
     });
 
     const user2 = await User.create({
@@ -400,7 +400,7 @@ const seedDatabase = async () => {
       phone: '+91 98271 11223',
       role: 'user',
       city: 'Durg',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
+      avatar: null,
     });
 
     const user3 = await User.create({
@@ -410,7 +410,7 @@ const seedDatabase = async () => {
       phone: '+91 98271 44556',
       role: 'user',
       city: 'Raipur',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
+      avatar: null,
     });
 
     console.log('Seeded 1 Admin (admin@imovies.com) and 3 Audience Users.');
