@@ -2,6 +2,7 @@ const Seat = require('../models/Seat');
 const Show = require('../models/Show');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const { broadcastSeatLocked, broadcastSeatReleased } = require('../sockets/socketHandler');
+const { isShowPast } = require('../utils/dateUtils');
 
 const LOCK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -25,6 +26,11 @@ exports.lockSeats = async (req, res, next) => {
     const show = await Show.findById(showId);
     if (!show) {
       return sendError(res, 'Show not found', 404);
+    }
+
+    // Check if show start time has already passed
+    if (isShowPast(show.showDate || show.date, show.showTime || show.startTime)) {
+      return sendError(res, 'This show has already started or concluded. Cannot reserve seats for past shows.', 400);
     }
 
     const now = new Date();

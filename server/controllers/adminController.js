@@ -297,6 +297,32 @@ exports.getAllPayments = async (req, res, next) => {
   }
 };
 
+// @desc    Sync movies from TMDB or curated fallback (Admin)
+// @route   GET /api/v1/admin/sync/movies
+// @access  Private/Admin
+exports.syncMoviesAdmin = async (req, res, next) => {
+  try {
+    const { syncMovies } = require('../services/tmdbService');
+    const result = await syncMovies();
+    return sendSuccess(res, result, `Movies synced successfully from ${result.source}`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Generate next 7 days of rolling shows (Admin)
+// @route   POST /api/v1/admin/generate-shows
+// @access  Private/Admin
+exports.generateShowsAdmin = async (req, res, next) => {
+  try {
+    const { generateRollingShows } = require('../services/showGenerator');
+    const result = await generateRollingShows({ daysAhead: 7 });
+    return sendSuccess(res, result, result.message);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Export revenue report as CSV (Admin)
 // @route   GET /api/v1/admin/reports/revenue/csv
 // @access  Private/Admin

@@ -3,13 +3,14 @@ const Movie = require('../models/Movie');
 const Theatre = require('../models/Theatre');
 const Seat = require('../models/Seat');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const { isShowPast } = require('../utils/dateUtils');
 
 // @desc    Get shows with filtering by movie, city, date, theatre
 // @route   GET /api/v1/shows
 // @access  Public
 exports.getShows = async (req, res, next) => {
   try {
-    const { movie, city, date, showDate, theatre } = req.query;
+    const { movie, city, date, showDate, theatre, hidePast } = req.query;
     const query = { status: 'active' };
 
     if (movie) query.movie = movie;
@@ -28,11 +29,39 @@ exports.getShows = async (req, res, next) => {
 
     const shows = await Show.find(query)
       .populate('movie', 'title poster certificate duration language genre rating averageRating')
-      .populate('theatre', 'name city address amenities lowerSeatPrice middleSeatPrice balconySeatPrice')
+      .populate('theatre', 'name city address location screens amenities lowerSeatPrice middleSeatPrice balconySeatPrice')
       .sort({ showDate: 1, showTime: 1 })
       .lean();
 
-    return sendSuccess(res, { shows }, 'Shows retrieved successfully');
+    const enrichedShows = [];
+    for (const s of shows) {
+      const sDate = s.showDate || s.date;
+      const sTime = s.showTime || s.startTime;
+      const isPast = isShowPast(sDate, sTime);
+
+      if (hidePast === 'true' && isPast) {
+        continue;
+      }
+
+      const totalSeats = await Seat.countDocuments({ show: s._id });
+      const bookedSeats = await Seat.countDocuments({ show: s._id, status: 'booked' });
+      const occupancyPercent = totalSeats > 0 ? Math.round((bookedSeats / totalSeats) * 100) : 0;
+
+      let occupancyStatus = 'available';
+      if (occupancyPercent >= 90) occupancyStatus = 'almost_full';
+      else if (occupancyPercent >= 70) occupancyStatus = 'fast_filling';
+
+      enrichedShows.push({
+        ...s,
+        isPast,
+        totalSeats,
+        bookedSeats,
+        occupancyPercent,
+        occupancyStatus,
+      });
+    }
+
+    return sendSuccess(res, { shows: enrichedShows }, 'Shows retrieved successfully');
   } catch (error) {
     next(error);
   }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -16,10 +16,19 @@ import {
   MessageSquare,
   Send,
   User,
+  Navigation,
+  ExternalLink,
 } from 'lucide-react';
 import { fetchMovieById } from '../redux/slices/movieSlice';
 import { Spinner } from '../components/common/Loader';
 import api from '../api/axios';
+import {
+  getNext7DaysKolkata,
+  getTodayKolkata,
+  isShowTimePassed,
+  calculateDistanceKm,
+  formatINR,
+} from '../utils/dateUtils';
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -27,11 +36,14 @@ const MovieDetails = () => {
   const navigate = useNavigate();
 
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  const { currentMovie, availableDates, movieShows, loading, selectedCity } = useSelector(
-    (state) => state.movies
-  );
+  const { currentMovie, availableDates, movieShows, loading, selectedCity, userLocation } =
+    useSelector((state) => state.movies);
 
-  const [selectedDate, setSelectedDate] = useState('');
+  // 7-day strip calculation starting today
+  const sevenDaysList = useMemo(() => getNext7DaysKolkata(), []);
+  const todayDateStr = getTodayKolkata();
+
+  const [selectedDate, setSelectedDate] = useState(todayDateStr);
   const [trailerModalUrl, setTrailerModalUrl] = useState(null);
 
   // Watchlist (Favorite) state
@@ -47,7 +59,7 @@ const MovieDetails = () => {
   const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchMovieById(id));
+    dispatch(fetchMovieById({ id, city: selectedCity }));
     loadReviews();
 
     // Check favorite status if authenticated
@@ -57,15 +69,7 @@ const MovieDetails = () => {
         .then((res) => setIsFavorite(res.data.data.isFavorite))
         .catch(() => setIsFavorite(false));
     }
-  }, [dispatch, id, isAuthenticated]);
-
-  useEffect(() => {
-    if (availableDates && availableDates.length > 0) {
-      setSelectedDate(availableDates[0]);
-    } else {
-      setSelectedDate(new Date().toISOString().split('T')[0]);
-    }
-  }, [availableDates]);
+  }, [dispatch, id, selectedCity, isAuthenticated]);
 
   const loadReviews = async () => {
     try {
@@ -126,9 +130,8 @@ const MovieDetails = () => {
 
       toast.success('Your review has been submitted!');
       setUserComment('');
-      // Reload reviews and movie stats
       loadReviews();
-      dispatch(fetchMovieById(id));
+      dispatch(fetchMovieById({ id, city: selectedCity }));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to submit review.');
     } finally {
@@ -151,12 +154,15 @@ const MovieDetails = () => {
   }
 
   // Filter shows for selected date
-  const showsOnDate = (movieShows || []).filter((s) => s.date === selectedDate);
+  const showsOnDate = (movieShows || []).filter(
+    (s) => (s.showDate || s.date) === selectedDate
+  );
 
   // Group shows by Theatre
   const theatreMap = {};
   showsOnDate.forEach((show) => {
-    const tId = show.theatre._id || show.theatre;
+    const tId = show.theatre?._id || show.theatre;
+    const tName = show.theatre?.name || 'Cinema Multiplex';
     if (!theatreMap[tId]) {
       theatreMap[tId] = {
         theatre: show.theatre,
@@ -227,13 +233,13 @@ const MovieDetails = () => {
           {/* Details Column */}
           <div className="col-md-8 col-lg-9 text-white">
             <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-              <span className="badge-cert">{currentMovie.certificate}</span>
+              <span className="badge-cert">{currentMovie.certificate || currentMovie.certification}</span>
               <span className="badge-rating">
                 <Star size={14} className="fill-warning" />{' '}
                 {currentMovie.rating?.toFixed(1) || currentMovie.averageRating?.toFixed(1) || '8.5'} / 10
               </span>
               <span className="text-muted small d-flex align-items-center gap-1 ms-2">
-                <Clock size={14} /> {currentMovie.duration || currentMovie.runtime || 120} mins
+                <Clock size={14} /> {currentMovie.duration || currentMovie.runtime || 135} mins
               </span>
               <span className="text-muted small ms-2">• {currentMovie.language}</span>
             </div>
@@ -266,7 +272,7 @@ const MovieDetails = () => {
               <div className="col-sm-6">
                 <strong className="text-white">Release Date: </strong>
                 <span className="text-muted">
-                  {new Date(currentMovie.releaseDate).toLocaleDateString('en-US', {
+                  {new Date(currentMovie.releaseDate).toLocaleDateString('en-IN', {
                     month: 'long',
                     day: 'numeric',
                     year: 'numeric',
@@ -289,35 +295,31 @@ const MovieDetails = () => {
             <div>
               <h3 className="font-heading text-white fs-4 mb-1">Select Date & Showtimes</h3>
               <p className="text-muted small mb-0">
-                Screenings in <strong className="text-danger">{selectedCity}</strong>
+                Screenings in <strong className="text-danger">{selectedCity}</strong> (Asia/Kolkata Timezone)
               </p>
             </div>
           </div>
 
-          {/* Date Selector Tabs */}
+          {/* 7-Day Date Selector Strip */}
           <div className="d-flex align-items-center gap-2 overflow-auto pb-3 mb-4 scrollbar-none">
-            {availableDates.map((dateStr) => {
-              const d = new Date(dateStr + 'T00:00:00');
-              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-              const dayNum = d.toLocaleDateString('en-US', { day: 'numeric' });
-              const monthName = d.toLocaleDateString('en-US', { month: 'short' });
-              const isSelected = selectedDate === dateStr;
+            {sevenDaysList.map((d) => {
+              const isSelected = selectedDate === d.dateStr;
 
               return (
                 <button
-                  key={dateStr}
-                  onClick={() => setSelectedDate(dateStr)}
+                  key={d.dateStr}
+                  onClick={() => setSelectedDate(d.dateStr)}
                   className={`btn p-2 text-center rounded-3 transition-all ${
                     isSelected ? 'btn-danger shadow' : 'btn-dark text-light border border-secondary'
                   }`}
                   style={{ minWidth: '78px' }}
                 >
                   <div className="text-uppercase small" style={{ fontSize: '0.7rem' }}>
-                    {dayName}
+                    {d.isToday ? 'TODAY' : d.dayName}
                   </div>
-                  <div className="fs-5 fw-bold my-1">{dayNum}</div>
+                  <div className="fs-5 fw-bold my-1">{d.dayNum}</div>
                   <div className="text-uppercase small" style={{ fontSize: '0.7rem' }}>
-                    {monthName}
+                    {d.monthName}
                   </div>
                 </button>
               );
@@ -328,62 +330,146 @@ const MovieDetails = () => {
           {groupedTheatres.length === 0 ? (
             <div className="glass-panel text-center py-5">
               <Calendar size={36} className="text-muted mb-2" />
-              <h5 className="text-white">No shows scheduled for {selectedDate}</h5>
+              <h5 className="text-white">No shows scheduled in {selectedCity} for {selectedDate}</h5>
               <p className="text-muted small">
-                Please select another date above or check nearby theatres.
+                Please select another date from the 7-day strip above or switch cinema cities from the navbar.
               </p>
             </div>
           ) : (
             <div className="d-flex flex-column gap-3">
-              {groupedTheatres.map(({ theatre, shows }) => (
-                <div key={theatre._id || theatre.name} className="glass-panel p-4">
-                  <div className="row g-3 align-items-center">
-                    {/* Theatre Info */}
-                    <div className="col-lg-4 col-md-5">
-                      <div className="d-flex align-items-center gap-2 mb-1">
-                        <Film size={18} className="text-danger" />
-                        <h5 className="text-white fw-bold mb-0">{theatre.name}</h5>
-                      </div>
-                      <p className="text-muted small mb-2 d-flex align-items-center gap-1">
-                        <MapPin size={14} /> {theatre.address}, {theatre.city}
-                      </p>
-                      {theatre.amenities && (
-                        <div className="d-flex flex-wrap gap-1">
-                          {theatre.amenities.slice(0, 3).map((amenity) => (
-                            <span
-                              key={amenity}
-                              className="badge bg-dark text-secondary border border-secondary"
-                              style={{ fontSize: '0.65rem' }}
-                            >
-                              {amenity}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+              {groupedTheatres.map(({ theatre, shows }) => {
+                const lat = theatre.location?.lat || 21.2195;
+                const lng = theatre.location?.lng || 81.3227;
+                const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 
-                    {/* Showtimes Pills */}
-                    <div className="col-lg-8 col-md-7">
-                      <div className="d-flex flex-wrap gap-3">
-                        {shows.map((show) => (
-                          <div
-                            key={show._id}
-                            className="p-2 rounded-3 border border-secondary bg-dark text-center cursor-pointer transition-all hover-scale"
-                            style={{ minWidth: '120px' }}
-                            onClick={() => navigate(`/shows/${show._id}/seats`)}
+                // Calculate distance if user location is available
+                const distance = userLocation
+                  ? calculateDistanceKm(userLocation.lat, userLocation.lng, lat, lng)
+                  : null;
+
+                return (
+                  <div key={theatre._id || theatre.name} className="glass-panel p-4">
+                    <div className="row g-3 align-items-center">
+                      {/* Theatre Info & Directions */}
+                      <div className="col-lg-4 col-md-5">
+                        <div className="d-flex align-items-center gap-2 mb-1">
+                          <Film size={18} className="text-danger" />
+                          <h5 className="text-white fw-bold mb-0">{theatre.name}</h5>
+                        </div>
+                        <p className="text-muted small mb-2 d-flex align-items-center gap-1">
+                          <MapPin size={14} className="text-danger flex-shrink-0" />
+                          <span>{theatre.address}, {theatre.city}</span>
+                        </p>
+
+                        <div className="d-flex align-items-center gap-2 mb-2">
+                          <a
+                            href={directionsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-outline-secondary btn-sm py-0 px-2 text-decoration-none d-inline-flex align-items-center gap-1"
+                            style={{ fontSize: '0.72rem' }}
                           >
-                            <div className="fw-bold text-white fs-6">{show.startTime}</div>
-                            <div className="text-danger small fw-semibold">{show.format}</div>
-                            <div className="text-muted" style={{ fontSize: '0.7rem' }}>
-                              From ${show.priceMap?.Regular || show.priceMap?.middle || 220}
-                            </div>
+                            <Navigation size={12} className="text-danger" />
+                            <span>Get Directions</span>
+                            <ExternalLink size={10} />
+                          </a>
+
+                          {distance !== null && (
+                            <span className="badge bg-dark text-muted border border-secondary" style={{ fontSize: '0.72rem' }}>
+                              {distance} km away
+                            </span>
+                          )}
+                        </div>
+
+                        {theatre.amenities && (
+                          <div className="d-flex flex-wrap gap-1">
+                            {theatre.amenities.slice(0, 3).map((amenity) => (
+                              <span
+                                key={amenity}
+                                className="badge bg-dark text-secondary border border-secondary"
+                                style={{ fontSize: '0.65rem' }}
+                              >
+                                {amenity}
+                              </span>
+                            ))}
                           </div>
-                        ))}
+                        )}
+                      </div>
+
+                      {/* Showtimes Pills */}
+                      <div className="col-lg-8 col-md-7">
+                        <div className="d-flex flex-wrap gap-3">
+                          {shows.map((show) => {
+                            const sDate = show.showDate || show.date;
+                            const sTime = show.showTime || show.startTime;
+                            const isPast =
+                              show.isPast !== undefined
+                                ? show.isPast
+                                : isShowTimePassed(sDate, sTime);
+
+                            const occupancyStatus = show.occupancyStatus || 'available';
+                            const minPrice =
+                              show.priceMap?.lower ||
+                              show.priceMap?.Regular ||
+                              theatre.lowerSeatPrice ||
+                              120;
+
+                            if (isPast) {
+                              return (
+                                <div
+                                  key={show._id}
+                                  className="p-2 rounded-3 border border-secondary bg-dark text-center opacity-40 cursor-not-allowed"
+                                  style={{ minWidth: '125px' }}
+                                  title="This showtime has already ended"
+                                >
+                                  <div className="text-muted fw-bold fs-6">{sTime}</div>
+                                  <div className="text-secondary small">{show.format}</div>
+                                  <span className="badge bg-secondary text-dark" style={{ fontSize: '0.65rem' }}>
+                                    Ended
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={show._id}
+                                className="p-2 rounded-3 border border-secondary bg-dark text-center cursor-pointer transition-all hover-scale position-relative"
+                                style={{ minWidth: '125px' }}
+                                onClick={() => navigate(`/shows/${show._id}/seats`)}
+                              >
+                                <div className="fw-bold text-white fs-6">{sTime}</div>
+                                <div className="text-danger small fw-semibold d-flex justify-content-center align-items-center gap-1">
+                                  <span>{show.format}</span>
+                                  {occupancyStatus === 'almost_full' && (
+                                    <span
+                                      className="badge bg-danger text-white px-1 py-0"
+                                      style={{ fontSize: '0.6rem' }}
+                                    >
+                                      Almost Full
+                                    </span>
+                                  )}
+                                  {occupancyStatus === 'fast_filling' && (
+                                    <span
+                                      className="badge bg-warning text-dark px-1 py-0"
+                                      style={{ fontSize: '0.6rem' }}
+                                    >
+                                      Fast Filling
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-muted" style={{ fontSize: '0.72rem' }}>
+                                  From {formatINR(minPrice)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -446,7 +532,7 @@ const MovieDetails = () => {
                     <textarea
                       className="form-control bg-dark text-light border-secondary"
                       rows="4"
-                      placeholder="What did you love about this cinema experience? (Performances, visuals, sound...)"
+                      placeholder="Share your thoughts on the performances, direction, and theatre experience..."
                       value={userComment}
                       onChange={(e) => setUserComment(e.target.value)}
                       required
@@ -499,7 +585,7 @@ const MovieDetails = () => {
                               {rev.user?.name || 'Cinema Fan'}
                             </div>
                             <div className="text-muted" style={{ fontSize: '0.7rem' }}>
-                              {new Date(rev.createdAt).toLocaleDateString('en-US', {
+                              {new Date(rev.createdAt).toLocaleDateString('en-IN', {
                                 month: 'short',
                                 day: 'numeric',
                                 year: 'numeric',

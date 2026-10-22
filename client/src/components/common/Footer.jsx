@@ -45,10 +45,11 @@ const Footer = () => {
           <div className="col-lg-3 col-md-6 col-6">
             <h6 className="text-white fw-bold text-uppercase mb-3 small tracking-wider">Cinema Hubs</h6>
             <ul className="list-unstyled d-flex flex-column gap-2 small text-muted">
-              <li>PVR ICON Gold – Mumbai</li>
-              <li>INOX Insignia – Bengaluru</li>
-              <li>Cinepolis Grand – Delhi NCR</li>
-              <li>SPI Cinemas Palazzo – Chennai</li>
+              <li>PVR Treasure Island – Bhilai</li>
+              <li>Tarun LV & Swaroop – Durg</li>
+              <li>PVR Magneto & Inox – Raipur</li>
+              <li>Cinépolis VR & Empress – Nagpur</li>
+              <li>PVR ICON Palladium – Mumbai</li>
             </ul>
           </div>
 

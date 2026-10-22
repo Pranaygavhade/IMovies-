@@ -303,7 +303,7 @@ const SeatSelection = () => {
                           className={`seat-btn ${seatClass} ${categoryBorder}`}
                           onClick={() => handleSeatClick(seat)}
                           disabled={isBooked || isLocked}
-                          title={`${seat.seatNumber} (${seat.category}) - $${seat.price}`}
+                          title={`${seat.seatNumber} (${seat.category}) - ₹${seat.price}`}
                         >
                           {seat.seatNumber.replace(/\D/g, '')}
                         </button>
@@ -314,7 +314,7 @@ const SeatSelection = () => {
 
                 {/* Row Price label */}
                 <span className="text-muted small ms-3 text-nowrap" style={{ width: '60px', fontSize: '0.75rem' }}>
-                  ${rowConfig.price}
+                  ₹{rowConfig.price}
                 </span>
               </div>
             );
@@ -372,7 +372,7 @@ const SeatSelection = () => {
                     className="badge bg-danger text-white px-2 py-1"
                     style={{ fontSize: '0.8rem' }}
                   >
-                    {s.seatNumber} (${s.price})
+                    {s.seatNumber} (₹{s.price})
                   </span>
                 ))}
               </div>
@@ -382,7 +382,7 @@ const SeatSelection = () => {
           <div className="d-flex align-items-center gap-4 justify-content-between justify-content-md-end">
             <div className="text-end">
               <div className="text-muted small text-uppercase">Total Amount</div>
-              <div className="fs-3 fw-bold text-white font-heading">${totalAmount.toFixed(2)}</div>
+              <div className="fs-3 fw-bold text-white font-heading">₹{totalAmount.toFixed(2)}</div>
             </div>
 
             <button

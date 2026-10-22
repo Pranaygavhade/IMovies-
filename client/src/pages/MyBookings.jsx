@@ -169,7 +169,7 @@ const MyBookings = () => {
 
                     <div className="mb-3">
                       <span className="text-muted small d-block">Total Paid:</span>
-                      <span className="text-danger fs-5 fw-bold font-heading">${b.totalAmount.toFixed(2)}</span>
+                      <span className="text-danger fs-5 fw-bold font-heading">₹{b.totalAmount.toFixed(2)}</span>
                       {b.refundStatus && b.refundStatus !== 'none' && (
                         <div className="small text-warning mt-1">
                           Refund: {b.refundStatus === 'full' ? 'Full Refund Processed' : 'Ineligible (<2h policy)'}

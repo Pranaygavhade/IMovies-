@@ -150,7 +150,7 @@ const AdminBookings = () => {
                   <td className="small">
                     {b.seats?.map((s) => s.seatNumber).join(', ')}
                   </td>
-                  <td className="text-danger fw-bold small">${b.totalAmount.toFixed(2)}</td>
+                  <td className="text-danger fw-bold small">₹{b.totalAmount.toFixed(2)}</td>
                   <td>
                     <span
                       className={`badge ${

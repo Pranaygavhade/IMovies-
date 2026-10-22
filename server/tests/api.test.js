@@ -4,7 +4,7 @@ const { app, httpServer, startServer } = require('../server');
 const mongoose = require('mongoose');
 const { disconnectDB } = require('../config/db');
 
-jest.setTimeout(35000);
+jest.setTimeout(60000);
 
 let adminToken;
 let userToken;
@@ -30,11 +30,13 @@ beforeAll(async () => {
     .send({ email: 'john@example.com', password: 'User@123' });
   userToken = userRes.body.data.token;
 
-  // Fetch a show to use in tests
+  // Fetch an upcoming/open show to use in tests (ensure not past showtime)
   const showsRes = await request(app).get('/api/v1/shows');
-  if (showsRes.body.data.shows && showsRes.body.data.shows.length > 0) {
-    testShowId = showsRes.body.data.shows[0]._id;
-    testMovieId = showsRes.body.data.shows[0].movie?._id || showsRes.body.data.shows[0].movie;
+  const shows = showsRes.body?.data?.shows || [];
+  if (shows.length > 0) {
+    const futureShow = shows.find((s) => !s.isPast) || shows[shows.length - 1];
+    testShowId = futureShow._id;
+    testMovieId = futureShow.movie?._id || futureShow.movie;
   }
 });
 
@@ -114,20 +116,20 @@ describe('2. Movies & Search/Filter APIs', () => {
   });
 
   it('should search movies by title', async () => {
-    const res = await request(app).get('/api/v1/movies?search=Dune');
+    const res = await request(app).get('/api/v1/movies?search=Drishyam');
     expect(res.status).toBe(200);
     expect(res.body.data.movies.length).toBeGreaterThan(0);
-    expect(res.body.data.movies[0].title).toContain('Dune');
+    expect(res.body.data.movies[0].title).toContain('Drishyam');
   });
 
   it('should filter movies by genre', async () => {
-    const res = await request(app).get('/api/v1/movies?genre=Sci-Fi');
+    const res = await request(app).get('/api/v1/movies?genre=Crime');
     expect(res.status).toBe(200);
     expect(res.body.data.movies.length).toBeGreaterThan(0);
-    const hasSciFi = res.body.data.movies.every(
-      (m) => (m.genres && m.genres.includes('Sci-Fi')) || (m.genre && m.genre.includes('Sci-Fi'))
+    const hasGenre = res.body.data.movies.every(
+      (m) => (m.genres && m.genres.includes('Crime')) || (m.genre && m.genre.includes('Crime'))
     );
-    expect(hasSciFi).toBe(true);
+    expect(hasGenre).toBe(true);
   });
 });
 
@@ -331,5 +333,44 @@ describe('6. Role-Based Access Control & Admin Features', () => {
     expect(res.status).toBe(200);
     expect(res.header['content-type']).toContain('text/csv');
     expect(res.text).toContain('Booking Code');
+  });
+
+  it('should allow admin to trigger live movie sync', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/sync/movies')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.source).toBeDefined();
+  });
+});
+
+describe('7. City Geolocation & Detection APIs (Section 16)', () => {
+  it('should list all supported cinema cities with default Bhilai', async () => {
+    const res = await request(app).get('/api/v1/cities');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.cities.length).toBeGreaterThanOrEqual(12);
+    expect(res.body.data.defaultCity).toBe('Bhilai');
+    const bhilai = res.body.data.cities.find((c) => c.name === 'Bhilai');
+    expect(bhilai).toBeDefined();
+    expect(bhilai.state).toBe('Chhattisgarh');
+  });
+
+  it('should detect nearest supported city using coordinates (Bhilai coords)', async () => {
+    // 21.21 N, 81.38 E is around Bhilai / Durg
+    const res = await request(app).get('/api/v1/cities/nearest?lat=21.2167&lng=81.3833');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.city.name).toBe('Bhilai');
+  });
+
+  it('should detect fallback city via IP detection endpoint', async () => {
+    const res = await request(app).get('/api/v1/cities/detect-ip');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.city).toBeDefined();
+    expect(res.body.data.city.name).toBe('Bhilai');
   });
 });

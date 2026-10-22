@@ -7,6 +7,8 @@ const {
   getAllBookings,
   getAllPayments,
   exportRevenueReportCSV,
+  syncMoviesAdmin,
+  generateShowsAdmin,
 } = require('../controllers/adminController');
 const { protectRoute, authorizeRoles } = require('../middleware/auth');
 
@@ -18,6 +20,9 @@ router.get('/users', getAllUsers);
 router.put('/users/:id/toggle-status', toggleUserStatus);
 router.get('/bookings', getAllBookings);
 router.get('/payments', getAllPayments);
+router.get('/sync/movies', syncMoviesAdmin);
+router.post('/generate-shows', generateShowsAdmin);
+router.get('/generate-shows', generateShowsAdmin);
 router.get('/reports/revenue-csv', exportRevenueReportCSV);
 router.get('/reports/revenue/csv', exportRevenueReportCSV);
 

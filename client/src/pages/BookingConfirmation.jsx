@@ -145,7 +145,7 @@ const BookingConfirmation = () => {
 
                   <div className="col-6">
                     <span className="text-muted d-block">Amount Paid</span>
-                    <strong className="text-danger fs-6">${booking.totalAmount.toFixed(2)}</strong>
+                    <strong className="text-danger fs-6">₹{booking.totalAmount.toFixed(2)}</strong>
                   </div>
 
                   <div className="col-6 mt-2">

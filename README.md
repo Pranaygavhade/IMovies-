@@ -3,15 +3,32 @@
 [![MERN Stack](https://img.shields.io/badge/Stack-MERN-red.svg)](https://reactjs.org/)
 [![Socket.IO](https://img.shields.io/badge/Realtime-Socket.IO-black.svg)](https://socket.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind_CSS_v4-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-24%20Passing-success.svg)](https://jestjs.io/)
+[![Tests](https://img.shields.io/badge/Tests-28%20Passing-success.svg)](https://jestjs.io/)
 [![Deploy](https://img.shields.io/badge/Deploy-Single--Deploy%20Monorepo-blueviolet.svg)](render.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**IMovies** is a complete, production-ready cinema ticket booking platform built on the modern MERN stack. Designed with a cinematic dark theme (`#0b0b12`, `#e50914`, `#d4af37`), it delivers real-time seat lock synchronization, an interactive curved-screen auditorium layout, dynamic QR ticketing, a dual-mode payment gateway (Razorpay test mode + built-in zero-dependency simulated gateway with dedicated payment failure/retry screen), a watchlist, an audience reviews system with automatic movie rating recalculation, and an admin command center with live Recharts analytics and CSV export.
+**IMovies** is a complete, production-ready cinema ticket booking platform built on the modern MERN stack. Designed with a cinematic dark theme (`#0b0b12`, `#e50914`, `#d4af37`), it features live movie catalog synchronization via TMDB (with an automated curated fallback as of 22 October 2026), intelligent city auto-detection defaulting to **Bhilai, Chhattisgarh**, real multiplexes and heritage cinema halls in Bhilai and Durg, a rolling 7-day show schedule with zero overlaps, real-time seat lock synchronization, an interactive curved-screen auditorium layout, dynamic QR ticketing, a dual-mode payment gateway (Razorpay test mode + built-in zero-dependency simulated gateway), a watchlist, an audience reviews system with automatic movie rating recalculation, and an admin command center with live Recharts analytics and CSV export.
 
 ---
 
 ## 🌟 Key Features
+
+### 📍 Live Movies, Geo-City & Real Details (Section 16)
+- **Live TMDB Catalog Sync**: Automatically queries `/movie/now_playing`, `/movie/upcoming`, and `/discover/movie` with Indian languages (`hi, te, ta, ml, kn, bn, mr, pa, en`). Daily automated cron sync + admin 1-click "Sync Movies Now" button.
+- **22 October 2026 Curated Catalog**: 18 curated films (*Drishyam 3: The Conclusion*, *Prem Keetanu*, *Udta Teer*, *Jailer 2*, *Ranabaali*, *Prahaar*, *Nayyi Navelli*, *Street Fighter*, *Tu Hai Meri Kiran*, *Kaali Kheti*, *Ramayana: Part 1*, etc.) loaded instantly when TMDB key is omitted.
+- **Intelligent City Auto-Detection**:
+  1. Browser Geolocation API reverse-geocoded to the nearest supported cinema hub
+  2. IP-based server fallback (`/api/v1/cities/detect-ip`)
+  3. Last remembered city in `localStorage`
+  4. Default: **Bhilai, Chhattisgarh**
+- **12 Supported Cinema Cities**: Bhilai, Durg, Raipur, Nagpur, Bilaspur, Mumbai, Delhi, Bengaluru, Hyderabad, Chennai, Pune, and Kolkata.
+- **Real Theatres for Bhilai & Durg**:
+  - *Bhilai*: PVR Treasure Island, Mukta A2 Cinemas, New Vasant Talkies, RLR Cinemas
+  - *Durg*: Tarun LV Cinemas, Swaroop Talkies, K Sera Sera Miniplex
+  - *Plus venues across Raipur, Nagpur, and Mumbai*.
+- **7-Day Rolling Show Generator**: Nightly 00:05 IST cron keeps the next 7 days filled with shows for every active movie across all multiplexes and single screens with zero collisions.
+- **Interactive Proximity & Directions**: Displays live distance in kilometers from the user's location and 1-click "Get Directions" Google Maps links.
+- **Occupancy Badges & Show Status**: Live occupancy chips ("Fast Filling" >70%, "Almost Full" >90%), greyed-out passed showtimes, and `Asia/Kolkata` timezone with Indian Rupee (`₹`) pricing throughout.
 
 ### 🎟️ Public & Audience Experience
 - **Cinematic Dark Design**: Immersive `#0b0b12` interface with crimson `#e50914` & gold `#d4af37` accents, glassmorphic panels, and backdrop blur.
@@ -181,8 +198,13 @@ IMovies dynamically selects the payment gateway based on your environment:
 - `PUT /movies/:id` – Update movie (`Admin`)
 - `DELETE /movies/:id` – Delete movie & cancel associated shows (`Admin`)
 
+### Cities & Geolocation (`/cities`)
+- `GET /cities` – List all 12 supported cinema cities with default `Bhilai`
+- `GET /cities/nearest?lat=&lng=` – Nearest supported city via Haversine reverse-geocoding
+- `GET /cities/detect-ip` – IP-based fallback city detection
+
 ### Theatres (`/theatres`)
-- `GET /theatres` – List theatres (optional `?city=Mumbai`)
+- `GET /theatres` – List theatres (optional `?city=Bhilai`)
 - `GET /theatres/cities` – List distinct cinema hub cities
 - `GET /theatres/:id` – Single theatre details with screens & amenities
 - `POST /theatres` – Create theatre (`Admin`)
@@ -221,6 +243,8 @@ IMovies dynamically selects the payment gateway based on your environment:
 - `GET /admin/stats` – Revenue metrics, 7-day trend, top movies, multiplex occupancy rate
 - `GET /admin/reports/revenue-csv` – Streamed CSV financial ledger download
 - `GET /admin/users` – Paginated audience user accounts
+- `GET /admin/sync/movies` – Trigger live TMDB catalog sync or curated fallback (`Admin`)
+- `POST /admin/generate-shows` – Trigger rolling 7-day show schedule generation (`Admin`)
 - `PUT /admin/users/:id/toggle-status` – Suspend / activate user account
 - `GET /admin/bookings` – Searchable platform bookings ledger
 

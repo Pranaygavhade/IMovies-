@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { toast } from 'react-toastify';
 import {
   Film,
   MapPin,
@@ -12,11 +13,18 @@ import {
   Shield,
   Menu,
   X,
-  CheckCircle,
   Heart,
+  Navigation,
+  Compass,
+  Check,
 } from 'lucide-react';
-import { logout } from '../../redux/slices/authSlice';
-import { setSelectedCity } from '../../redux/slices/movieSlice';
+import { logout, updateUserProfile } from '../../redux/slices/authSlice';
+import {
+  setSelectedCity,
+  fetchCities,
+  detectNearestCity,
+  detectCityByIp,
+} from '../../redux/slices/movieSlice';
 import { fetchNotifications, markNotificationAsRead } from '../../redux/slices/notificationSlice';
 
 const Navbar = () => {
@@ -25,19 +33,40 @@ const Navbar = () => {
   const dispatch = useDispatch();
 
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  const { cities, selectedCity } = useSelector((state) => state.movies);
+  const { cities, selectedCity, detectingLocation } = useSelector((state) => state.movies);
   const { notifications, unreadCount } = useSelector((state) => state.notifications);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [citySearchFilter, setCitySearchFilter] = useState('');
+
+  const cityDropdownRef = useRef(null);
 
   useEffect(() => {
+    dispatch(fetchCities());
     if (isAuthenticated) {
       dispatch(fetchNotifications());
     }
+
+    // Auto-detect on first load if city not in localStorage
+    if (!localStorage.getItem('imovies_city')) {
+      handleAutoDetectLocation();
+    }
   }, [isAuthenticated, dispatch]);
+
+  // Click outside listener for city dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(e.target)) {
+        setCityDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -48,8 +77,75 @@ const Navbar = () => {
     }
   };
 
-  const handleCityChange = (city) => {
-    dispatch(setSelectedCity(city));
+  const handleCitySelect = (cityName) => {
+    dispatch(setSelectedCity(cityName));
+    setCityDropdownOpen(false);
+    setCitySearchFilter('');
+
+    // If logged in, update user profile city
+    if (isAuthenticated) {
+      dispatch(updateUserProfile({ city: cityName }));
+    }
+
+    toast.info(`Cinema location set to ${cityName}`);
+  };
+
+  const handleAutoDetectLocation = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const res = await dispatch(
+              detectNearestCity({ lat: latitude, lng: longitude })
+            ).unwrap();
+            const nearestName = res.city?.name || 'Bhilai';
+            toast.success(`Location detected: ${nearestName} (${res.distanceKm} km away)`);
+          } catch {
+            dispatch(detectCityByIp());
+          }
+        },
+        () => {
+          // Fallback to IP detection
+          dispatch(detectCityByIp());
+        },
+        { timeout: 7000 }
+      );
+    } else {
+      dispatch(detectCityByIp());
+    }
+  };
+
+  const handleDetectLocationClick = (e) => {
+    e.stopPropagation();
+    if (!('geolocation' in navigator)) {
+      toast.warn('Geolocation not supported by your browser. Using IP detection.');
+      dispatch(detectCityByIp());
+      return;
+    }
+
+    toast.info('Detecting your current location...');
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await dispatch(
+            detectNearestCity({ lat: latitude, lng: longitude })
+          ).unwrap();
+          const nearestName = res.city?.name || 'Bhilai';
+          toast.success(`Location detected: ${nearestName} (${res.distanceKm} km away)`);
+          setCityDropdownOpen(false);
+        } catch {
+          toast.error('Could not find nearest city. Falling back to default.');
+          dispatch(detectCityByIp());
+        }
+      },
+      (err) => {
+        toast.warn(`Location permission not granted. Defaulting to Bhilai, CG.`);
+        dispatch(detectCityByIp());
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
   };
 
   const handleLogout = () => {
@@ -57,6 +153,14 @@ const Navbar = () => {
     setUserDropdownOpen(false);
     navigate('/login');
   };
+
+  // Filter cities for search inside dropdown
+  const filteredCities = (cities || []).filter((c) => {
+    const name = typeof c === 'string' ? c : c.name;
+    const state = typeof c === 'object' && c.state ? c.state : '';
+    const term = citySearchFilter.toLowerCase();
+    return name.toLowerCase().includes(term) || state.toLowerCase().includes(term);
+  });
 
   return (
     <nav className="navbar navbar-expand-lg glass-nav sticky-top py-3">
@@ -75,34 +179,100 @@ const Navbar = () => {
           </div>
         </Link>
 
-        {/* City Selector */}
-        <div className="dropdown d-none d-md-block ms-lg-3">
+        {/* Searchable City Selector with "Detect My Location" */}
+        <div className="position-relative d-none d-md-block ms-lg-3" ref={cityDropdownRef}>
           <button
-            className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2 text-light border-0 py-2 px-3 rounded-pill"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.06)' }}
+            className="btn btn-outline-secondary d-flex align-items-center gap-2 text-light border-0 py-2 px-3 rounded-pill"
+            style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
             type="button"
-            data-bs-toggle="dropdown"
+            onClick={() => setCityDropdownOpen(!cityDropdownOpen)}
           >
             <MapPin size={16} className="text-danger" />
-            <span className="fw-medium text-capitalize">{selectedCity}</span>
+            <span className="fw-medium text-capitalize">{selectedCity || 'Bhilai'}</span>
           </button>
-          <ul className="dropdown-menu dropdown-menu-dark glass-panel mt-2 shadow-lg border-0">
-            {cities.map((city) => (
-              <li key={city}>
-                <button
-                  className={`dropdown-item py-2 ${city === selectedCity ? 'text-danger fw-bold' : 'text-light'}`}
-                  onClick={() => handleCityChange(city)}
-                >
-                  {city}
-                </button>
-              </li>
-            ))}
-          </ul>
+
+          {/* City Selection Dropdown Panel */}
+          {cityDropdownOpen && (
+            <div
+              className="position-absolute start-0 mt-2 p-3 glass-panel shadow-lg border border-secondary"
+              style={{ width: '310px', zIndex: 1060 }}
+            >
+              {/* Detect my location button */}
+              <button
+                type="button"
+                className="btn btn-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-2 mb-3 py-2 fw-semibold"
+                onClick={handleDetectLocationClick}
+                disabled={detectingLocation}
+              >
+                <Navigation size={15} className={detectingLocation ? 'animate-spin' : ''} />
+                <span>{detectingLocation ? 'Locating...' : 'Detect My Location'}</span>
+              </button>
+
+              {/* City search input */}
+              <div className="position-relative mb-2">
+                <Search
+                  size={14}
+                  className="position-absolute top-50 start-0 translate-middle-y ms-2 text-muted"
+                />
+                <input
+                  type="text"
+                  className="form-control form-control-sm bg-dark text-light border-secondary ps-4 py-1"
+                  placeholder="Search city (e.g. Bhilai, Durg)..."
+                  value={citySearchFilter}
+                  onChange={(e) => setCitySearchFilter(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {/* Cities List */}
+              <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                {filteredCities.length === 0 ? (
+                  <p className="text-muted small text-center my-3">No matching cities found</p>
+                ) : (
+                  filteredCities.map((city) => {
+                    const cityName = typeof city === 'string' ? city : city.name;
+                    const cityState = typeof city === 'object' && city.state ? city.state : '';
+                    const isSelected = cityName.toLowerCase() === selectedCity.toLowerCase();
+
+                    return (
+                      <button
+                        key={cityName}
+                        type="button"
+                        className={`btn btn-sm w-100 text-start d-flex justify-content-between align-items-center px-2 py-2 rounded-2 mb-1 ${
+                          isSelected
+                            ? 'bg-danger text-white fw-bold'
+                            : 'btn-dark text-light border-0'
+                        }`}
+                        onClick={() => handleCitySelect(cityName)}
+                      >
+                        <div>
+                          <span className="text-capitalize">{cityName}</span>
+                          {cityState && (
+                            <span className="text-muted small ms-2" style={{ fontSize: '0.72rem' }}>
+                              {cityState}
+                            </span>
+                          )}
+                        </div>
+                        {isSelected && <Check size={16} />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="d-none d-lg-flex mx-auto position-relative" style={{ width: '380px' }}>
-          <Search size={18} className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
+        <form
+          onSubmit={handleSearchSubmit}
+          className="d-none d-lg-flex mx-auto position-relative"
+          style={{ width: '360px' }}
+        >
+          <Search
+            size={18}
+            className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"
+          />
           <input
             type="text"
             className="form-control rounded-pill ps-5 py-2 text-light border-0"
@@ -122,12 +292,45 @@ const Navbar = () => {
         </button>
 
         {/* Right Nav Action items */}
-        <div className={`collapse navbar-collapse ${mobileMenuOpen ? 'show mt-3' : ''} justify-content-end`}>
+        <div
+          className={`collapse navbar-collapse ${mobileMenuOpen ? 'show mt-3' : ''} justify-content-end`}
+        >
+          {/* Mobile City Selector */}
+          <div className="d-md-none mb-3 pb-2 border-bottom border-secondary">
+            <div className="text-muted small fw-semibold mb-2">Cinema Location</div>
+            <div className="d-flex gap-2">
+              <select
+                className="form-select bg-dark text-light border-secondary"
+                value={selectedCity}
+                onChange={(e) => handleCitySelect(e.target.value)}
+              >
+                {cities.map((c) => {
+                  const name = typeof c === 'string' ? c : c.name;
+                  return (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm px-3"
+                onClick={handleDetectLocationClick}
+                title="Detect My Location"
+              >
+                <Navigation size={16} />
+              </button>
+            </div>
+          </div>
+
           <ul className="navbar-nav align-items-lg-center gap-3">
             <li className="nav-item">
               <Link
                 to="/movies"
-                className={`nav-link px-3 ${location.pathname === '/movies' ? 'text-danger fw-bold' : 'text-light'}`}
+                className={`nav-link px-3 ${
+                  location.pathname === '/movies' ? 'text-danger fw-bold' : 'text-light'
+                }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Movies
@@ -172,7 +375,10 @@ const Navbar = () => {
                 >
                   <Bell size={20} />
                   {unreadCount > 0 && (
-                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.65rem' }}>
+                    <span
+                      className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                      style={{ fontSize: '0.65rem' }}
+                    >
                       {unreadCount}
                     </span>
                   )}
@@ -196,7 +402,9 @@ const Navbar = () => {
                           <div
                             key={notif._id}
                             className={`p-2 mb-2 rounded-2 cursor-pointer ${
-                              notif.isRead ? 'bg-transparent text-secondary' : 'bg-dark text-light border-start border-3 border-danger'
+                              notif.isRead
+                                ? 'bg-transparent text-secondary'
+                                : 'bg-dark text-light border-start border-3 border-danger'
                             }`}
                             onClick={() => dispatch(markNotificationAsRead(notif._id))}
                           >
@@ -219,17 +427,26 @@ const Navbar = () => {
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 >
                   <img
-                    src={user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                    src={
+                      user?.avatar ||
+                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                    }
                     alt={user?.name}
                     className="rounded-circle border border-danger"
                     style={{ width: '38px', height: '38px', objectFit: 'cover' }}
                   />
                   <div className="text-start d-none d-sm-block">
-                    <div className="fw-semibold small text-white text-truncate" style={{ maxWidth: '120px' }}>
+                    <div
+                      className="fw-semibold small text-white text-truncate"
+                      style={{ maxWidth: '120px' }}
+                    >
                       {user?.name}
                     </div>
                     {user?.role === 'admin' && (
-                      <span className="badge bg-danger text-uppercase px-1 py-0" style={{ fontSize: '0.6rem' }}>
+                      <span
+                        className="badge bg-danger text-uppercase px-1 py-0"
+                        style={{ fontSize: '0.6rem' }}
+                      >
                         Admin
                       </span>
                     )}
@@ -293,10 +510,18 @@ const Navbar = () => {
               </li>
             ) : (
               <li className="nav-item d-flex align-items-center gap-2">
-                <Link to="/login" className="btn btn-outline-cinema btn-sm px-3" onClick={() => setMobileMenuOpen(false)}>
+                <Link
+                  to="/login"
+                  className="btn btn-outline-cinema btn-sm px-3"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
                   Sign In
                 </Link>
-                <Link to="/register" className="btn btn-cinema btn-sm px-3" onClick={() => setMobileMenuOpen(false)}>
+                <Link
+                  to="/register"
+                  className="btn btn-cinema btn-sm px-3"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
                   Sign Up
                 </Link>
               </li>

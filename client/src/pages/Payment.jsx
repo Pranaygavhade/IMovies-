@@ -248,7 +248,7 @@ const Payment = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const convenienceFee = 2.5;
+  const convenienceFee = 35;
   const grandTotal = totalAmount + convenienceFee;
   const isRealRazorpay = paymentOrderData?.gateway === 'razorpay';
 
@@ -417,7 +417,7 @@ const Payment = () => {
                   ) : (
                     <>
                       <Lock size={18} />
-                      <span>Proceed to Razorpay (${grandTotal.toFixed(2)})</span>
+                      <span>Proceed to Razorpay (₹{grandTotal.toFixed(2)})</span>
                     </>
                   )}
                 </button>
@@ -688,7 +688,7 @@ const Payment = () => {
                     ) : (
                       <>
                         <Lock size={18} />
-                        <span>Pay ${grandTotal.toFixed(2)} & Confirm</span>
+                        <span>Pay ₹{grandTotal.toFixed(2)} & Confirm</span>
                       </>
                     )}
                   </button>
@@ -731,11 +731,11 @@ const Payment = () => {
               </div>
               <div className="d-flex justify-content-between text-muted small mb-2">
                 <span>Tickets Subtotal:</span>
-                <span className="text-white">${totalAmount.toFixed(2)}</span>
+                <span className="text-white">₹{totalAmount.toFixed(2)}</span>
               </div>
               <div className="d-flex justify-content-between text-muted small mb-2">
                 <span>Convenience Fee:</span>
-                <span className="text-white">${convenienceFee.toFixed(2)}</span>
+                <span className="text-white">₹{convenienceFee.toFixed(2)}</span>
               </div>
             </div>
 
@@ -744,7 +744,7 @@ const Payment = () => {
                 <div className="text-white fw-bold fs-5">Total Payable</div>
                 <div className="text-muted small">Inclusive of all cinema taxes</div>
               </div>
-              <div className="fs-3 fw-bold text-danger font-heading">${grandTotal.toFixed(2)}</div>
+              <div className="fs-3 fw-bold text-danger font-heading">₹{grandTotal.toFixed(2)}</div>
             </div>
           </div>
         </div>

@@ -63,9 +63,24 @@ const movieSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    tmdbId: {
+      type: Number,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+    popularity: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+    isCustom: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
-      enum: ['now_showing', 'upcoming'],
+      enum: ['now_showing', 'upcoming', 'archived'],
       default: 'now_showing',
       index: true,
     },

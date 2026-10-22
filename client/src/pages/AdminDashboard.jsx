@@ -13,6 +13,8 @@ import {
   Calendar,
   CheckCircle2,
   Download,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -50,6 +52,47 @@ const AdminDashboard = () => {
 
   const { summary, revenueTrend, topMovies, recentBookings } = stats;
 
+  const [syncingMovies, setSyncingMovies] = useState(false);
+  const [generatingShows, setGeneratingShows] = useState(false);
+
+  const handleSyncMovies = async () => {
+    try {
+      setSyncingMovies(true);
+      toast.info('Starting movie synchronization (TMDB / Curated list)...');
+      const res = await api.get('/admin/sync/movies');
+      const data = res.data.data;
+      toast.success(
+        `Movies synced successfully! ${data.count || 0} titles loaded from ${data.source || 'TMDB'}.`
+      );
+      // Reload stats
+      const statsRes = await api.get('/admin/stats');
+      setStats(statsRes.data.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to sync movies');
+    } finally {
+      setSyncingMovies(false);
+    }
+  };
+
+  const handleGenerateShows = async () => {
+    try {
+      setGeneratingShows(true);
+      toast.info('Generating rolling shows for the next 7 days...');
+      const res = await api.post('/admin/generate-shows');
+      const data = res.data.data;
+      toast.success(
+        data.message || `Scheduled ${data.createdShowsCount} new shows with zero overlaps!`
+      );
+      // Reload stats
+      const statsRes = await api.get('/admin/stats');
+      setStats(statsRes.data.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to generate shows');
+    } finally {
+      setGeneratingShows(false);
+    }
+  };
+
   const handleExportCSV = async () => {
     try {
       const response = await api.get('/admin/reports/revenue-csv', {
@@ -81,6 +124,26 @@ const AdminDashboard = () => {
         {/* Action Shortcuts */}
         <div className="d-flex flex-wrap gap-2">
           <button
+            onClick={handleSyncMovies}
+            disabled={syncingMovies}
+            className="btn btn-outline-info btn-sm d-flex align-items-center gap-1"
+            title="Fetch live movies from TMDB or curated fallback"
+          >
+            <RefreshCw size={15} className={syncingMovies ? 'animate-spin' : ''} />
+            <span>{syncingMovies ? 'Syncing...' : 'Sync Movies Now'}</span>
+          </button>
+
+          <button
+            onClick={handleGenerateShows}
+            disabled={generatingShows}
+            className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1"
+            title="Fill 7 days of rolling shows with zero collision"
+          >
+            <Sparkles size={15} className={generatingShows ? 'animate-spin' : ''} />
+            <span>{generatingShows ? 'Generating...' : 'Generate Shows'}</span>
+          </button>
+
+          <button
             onClick={handleExportCSV}
             className="btn btn-outline-warning btn-sm d-flex align-items-center gap-1"
           >
@@ -109,7 +172,7 @@ const AdminDashboard = () => {
                 <DollarSign size={20} />
               </div>
             </div>
-            <div className="fs-2 fw-bold text-white font-heading">${summary.totalRevenue.toLocaleString()}</div>
+            <div className="fs-2 fw-bold text-white font-heading">₹{summary.totalRevenue.toLocaleString('en-IN')}</div>
             <div className="text-muted small mt-1">Confirmed transactions</div>
           </div>
         </div>
@@ -202,7 +265,7 @@ const AdminDashboard = () => {
                     strokeWidth={2}
                     fillOpacity={1}
                     fill="url(#colorRev)"
-                    name="Revenue ($)"
+                    name="Revenue (₹)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -234,7 +297,7 @@ const AdminDashboard = () => {
                       <div className="text-muted small">{movie.ticketsSold} tickets sold</div>
                     </div>
                     <div className="text-end">
-                      <div className="text-warning fw-bold small">${movie.revenue.toLocaleString()}</div>
+                      <div className="text-warning fw-bold small">₹{movie.revenue.toLocaleString('en-IN')}</div>
                     </div>
                   </div>
                 ))
@@ -281,7 +344,7 @@ const AdminDashboard = () => {
                   <td className="text-muted small">
                     {b.show?.date} • {b.show?.startTime}
                   </td>
-                  <td className="text-danger fw-bold small">${b.totalAmount.toFixed(2)}</td>
+                  <td className="text-danger fw-bold small">₹{b.totalAmount.toFixed(2)}</td>
                   <td>
                     <span
                       className={`badge ${

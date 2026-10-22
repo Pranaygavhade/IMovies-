@@ -17,6 +17,8 @@ const { initSocket } = require('./sockets/socketHandler');
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./config/logger');
 const { releaseExpiredLocks } = require('./services/seatLockService');
+const { syncMovies } = require('./services/tmdbService');
+const { generateRollingShows } = require('./services/showGenerator');
 const { seedDatabase } = require('./seed/seed');
 const Movie = require('./models/Movie');
 
@@ -139,15 +141,37 @@ app.use('/api/v1/favorites', require('./routes/favoriteRoutes'));
 app.use('/api/v1/reviews', require('./routes/reviewRoutes'));
 app.use('/api/v1/admin', require('./routes/adminRoutes'));
 app.use('/api/v1/notifications', require('./routes/notificationRoutes'));
+app.use('/api/v1/cities', require('./routes/cityRoutes'));
 
-// Background Cron Job: Release expired seat locks & expired pending bookings every 30 seconds
+// Background Cron Jobs
 let cronJob = null;
 if (process.env.NODE_ENV !== 'test') {
+  // 1. Release expired seat locks & expired pending bookings every 30 seconds
   cronJob = cron.schedule('*/30 * * * * *', async () => {
     try {
       await releaseExpiredLocks();
     } catch (err) {
       logger.error(`Cron Seat Cleanup Error: ${err.message}`);
+    }
+  });
+
+  // 2. Daily TMDB sync at 03:00 IST
+  cron.schedule('0 3 * * *', async () => {
+    try {
+      logger.info('[Cron] Running daily live TMDB movie synchronization...');
+      await syncMovies();
+    } catch (err) {
+      logger.error(`Cron TMDB Sync Error: ${err.message}`);
+    }
+  });
+
+  // 3. Nightly rolling show generator at 00:05 IST (keeps next 7 days filled)
+  cron.schedule('5 0 * * *', async () => {
+    try {
+      logger.info('[Cron] Running nightly 7-day rolling show generator...');
+      await generateRollingShows({ daysAhead: 7 });
+    } catch (err) {
+      logger.error(`Cron Rolling Show Generator Error: ${err.message}`);
     }
   });
 }

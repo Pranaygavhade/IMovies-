@@ -1,9 +1,11 @@
 const Movie = require('../models/Movie');
 const Show = require('../models/Show');
 const Theatre = require('../models/Theatre');
+const Seat = require('../models/Seat');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
+const { isShowPast } = require('../utils/dateUtils');
 
-// @desc    Get all movies with filters, search, pagination and sorting
+// @desc    Get all movies with search, filter, and pagination
 // @route   GET /api/v1/movies
 // @access  Public
 exports.getMovies = async (req, res, next) => {
@@ -22,9 +24,11 @@ exports.getMovies = async (req, res, next) => {
 
     const query = {};
 
-    // Status filter (default to 'now_showing' if requested, or return all)
-    if (status) {
+    // Do not show archived movies to public
+    if (status && status !== 'all') {
       query.status = status;
+    } else {
+      query.status = { $in: ['now_showing', 'upcoming'] };
     }
 
     // Genre filter
@@ -50,26 +54,37 @@ exports.getMovies = async (req, res, next) => {
     // City or Theatre filter: find movie IDs that have active shows in that city / theatre
     if (city || theatre) {
       const theatreQuery = {};
-      if (city) theatreQuery.city = new RegExp(`^${city}$`, 'i');
+      if (city && city !== 'All') theatreQuery.city = new RegExp(`^${city}$`, 'i');
       if (theatre) theatreQuery._id = theatre;
 
       const matchingTheatres = await Theatre.find(theatreQuery).select('_id');
       const theatreIds = matchingTheatres.map((t) => t._id);
 
-      const shows = await Show.find({
+      const activeMovieIds = await Show.find({
         theatre: { $in: theatreIds },
         status: 'active',
       }).distinct('movie');
 
-      query._id = { $in: shows };
+      if (status === 'upcoming') {
+        // Keep upcoming movies visible regardless of shows
+      } else if (status === 'all') {
+        query.$or = [
+          { _id: { $in: activeMovieIds }, status: 'now_showing' },
+          { status: 'upcoming' },
+        ];
+      } else {
+        query._id = { $in: activeMovieIds };
+      }
     }
 
     // Sorting
     let sortQuery = { releaseDate: -1 };
-    if (sort === 'rating_desc') {
-      sortQuery = { rating: -1 };
+    if (sort === 'trending' || sort === 'popularity_desc') {
+      sortQuery = { popularity: -1, releaseDate: -1 };
+    } else if (sort === 'rating_desc') {
+      sortQuery = { rating: -1, averageRating: -1 };
     } else if (sort === 'rating_asc') {
-      sortQuery = { rating: 1 };
+      sortQuery = { rating: 1, averageRating: 1 };
     } else if (sort === 'release_asc') {
       sortQuery = { releaseDate: 1 };
     } else if (sort === 'title_asc') {
@@ -104,67 +119,126 @@ exports.getMovies = async (req, res, next) => {
   }
 };
 
-// @desc    Get single movie by ID with show dates
+// @desc    Get single movie by ID with show dates & city-filtered shows
 // @route   GET /api/v1/movies/:id
 // @access  Public
 exports.getMovieById = async (req, res, next) => {
   try {
+    const { city } = req.query;
     const movie = await Movie.findById(req.params.id);
     if (!movie) {
       return sendError(res, 'Movie not found', 404);
     }
 
-    // Get upcoming show dates and available theatres for this movie
-    const shows = await Show.find({ movie: movie._id, status: 'active' })
-      .populate('theatre', 'name city address')
-      .sort({ date: 1, startTime: 1 })
+    const showQuery = { movie: movie._id, status: 'active' };
+
+    if (city && city !== 'All') {
+      const theatresInCity = await Theatre.find({
+        city: new RegExp(`^${city}$`, 'i'),
+      }).select('_id');
+      showQuery.theatre = { $in: theatresInCity.map((t) => t._id) };
+    }
+
+    const shows = await Show.find(showQuery)
+      .populate('theatre', 'name city address location screens amenities lowerSeatPrice middleSeatPrice balconySeatPrice')
+      .sort({ showDate: 1, showTime: 1 })
       .lean();
 
+    // Attach isPast and occupancy metrics
+    const enrichedShows = [];
+    for (const s of shows) {
+      const sDate = s.showDate || s.date;
+      const sTime = s.showTime || s.startTime;
+      const isPast = isShowPast(sDate, sTime);
+
+      const totalSeats = await Seat.countDocuments({ show: s._id });
+      const bookedSeats = await Seat.countDocuments({ show: s._id, status: 'booked' });
+      const occupancyPercent = totalSeats > 0 ? Math.round((bookedSeats / totalSeats) * 100) : 0;
+
+      let occupancyStatus = 'available';
+      if (occupancyPercent >= 90) occupancyStatus = 'almost_full';
+      else if (occupancyPercent >= 70) occupancyStatus = 'fast_filling';
+
+      enrichedShows.push({
+        ...s,
+        isPast,
+        totalSeats,
+        bookedSeats,
+        occupancyPercent,
+        occupancyStatus,
+      });
+    }
+
     // Distinct dates
-    const availableDates = [...new Set(shows.map((s) => s.date))].sort();
+    const availableDates = [...new Set(enrichedShows.map((s) => s.showDate || s.date))].sort();
 
     return sendSuccess(
       res,
       {
         movie,
         availableDates,
-        shows,
+        shows: enrichedShows,
       },
-      'Movie details retrieved'
+      'Movie retrieved with showtimes'
     );
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Create a new movie (Admin)
+// @desc    Create new movie (Admin)
 // @route   POST /api/v1/movies
 // @access  Private/Admin
 exports.createMovie = async (req, res, next) => {
   try {
-    const movieData = { ...req.body };
+    let poster = req.body.poster;
+    let backdrop = req.body.backdrop;
 
-    // Format genre if sent as comma-separated string
-    if (typeof movieData.genre === 'string') {
-      movieData.genre = movieData.genre.split(',').map((g) => g.trim());
+    if (req.files) {
+      if (req.files.poster && req.files.poster[0]) {
+        poster = `/uploads/${req.files.poster[0].filename}`;
+      }
+      if (req.files.backdrop && req.files.backdrop[0]) {
+        backdrop = `/uploads/${req.files.backdrop[0].filename}`;
+      }
     }
 
-    // Format cast if sent as comma-separated string
-    if (typeof movieData.cast === 'string') {
-      movieData.cast = movieData.cast.split(',').map((c) => c.trim());
+    let genres = req.body.genres || req.body.genre;
+    if (typeof genres === 'string') {
+      try {
+        genres = JSON.parse(genres);
+      } catch (e) {
+        genres = genres.split(',').map((g) => g.trim());
+      }
     }
 
-    // If poster file uploaded via multer
-    if (req.files && req.files.poster) {
-      movieData.poster = `/uploads/${req.files.poster[0].filename}`;
+    let cast = req.body.cast;
+    if (typeof cast === 'string') {
+      try {
+        cast = JSON.parse(cast);
+      } catch (e) {
+        cast = cast.split(',').map((c) => c.trim());
+      }
     }
 
-    // If backdrop file uploaded via multer
-    if (req.files && req.files.backdrop) {
-      movieData.backdrop = `/uploads/${req.files.backdrop[0].filename}`;
-    }
-
-    const movie = await Movie.create(movieData);
+    const movie = await Movie.create({
+      title: req.body.title,
+      description: req.body.description,
+      genres,
+      language: req.body.language,
+      runtime: req.body.runtime || req.body.duration,
+      certification: req.body.certification || req.body.certificate || 'UA',
+      releaseDate: req.body.releaseDate,
+      poster,
+      backdrop,
+      trailerUrl: req.body.trailerUrl,
+      cast,
+      director: req.body.director,
+      status: req.body.status || 'now_showing',
+      averageRating: req.body.rating || req.body.averageRating || 0,
+      popularity: req.body.popularity || 75,
+      isCustom: true, // Manual admin create marked as custom
+    });
 
     return sendSuccess(res, { movie }, 'Movie created successfully', 201);
   } catch (error) {
@@ -177,34 +251,40 @@ exports.createMovie = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateMovie = async (req, res, next) => {
   try {
-    const movieData = { ...req.body };
-
-    if (typeof movieData.genre === 'string') {
-      movieData.genre = movieData.genre.split(',').map((g) => g.trim());
-    }
-
-    if (typeof movieData.cast === 'string') {
-      movieData.cast = movieData.cast.split(',').map((c) => c.trim());
-    }
-
-    if (req.files && req.files.poster) {
-      movieData.poster = `/uploads/${req.files.poster[0].filename}`;
-    }
-
-    if (req.files && req.files.backdrop) {
-      movieData.backdrop = `/uploads/${req.files.backdrop[0].filename}`;
-    }
-
-    const movie = await Movie.findByIdAndUpdate(req.params.id, movieData, {
-      new: true,
-      runValidators: true,
-    });
-
+    const movie = await Movie.findById(req.params.id);
     if (!movie) {
       return sendError(res, 'Movie not found', 404);
     }
 
-    return sendSuccess(res, { movie }, 'Movie updated successfully');
+    const updateData = { ...req.body, isCustom: true };
+
+    if (req.files) {
+      if (req.files.poster && req.files.poster[0]) {
+        updateData.poster = `/uploads/${req.files.poster[0].filename}`;
+      }
+      if (req.files.backdrop && req.files.backdrop[0]) {
+        updateData.backdrop = `/uploads/${req.files.backdrop[0].filename}`;
+      }
+    }
+
+    if (updateData.genres || updateData.genre) {
+      let genres = updateData.genres || updateData.genre;
+      if (typeof genres === 'string') {
+        try {
+          genres = JSON.parse(genres);
+        } catch (e) {
+          genres = genres.split(',').map((g) => g.trim());
+        }
+      }
+      updateData.genres = genres;
+    }
+
+    const updatedMovie = await Movie.findByIdAndUpdate(req.params.id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    return sendSuccess(res, { movie: updatedMovie }, 'Movie updated successfully');
   } catch (error) {
     next(error);
   }
@@ -220,11 +300,10 @@ exports.deleteMovie = async (req, res, next) => {
       return sendError(res, 'Movie not found', 404);
     }
 
+    await Show.updateMany({ movie: movie._id }, { status: 'cancelled' });
     await Movie.findByIdAndDelete(req.params.id);
-    // Also cancel any associated upcoming shows
-    await Show.updateMany({ movie: req.params.id }, { $set: { status: 'cancelled' } });
 
-    return sendSuccess(res, {}, 'Movie deleted successfully');
+    return sendSuccess(res, null, 'Movie and associated shows cancelled successfully');
   } catch (error) {
     next(error);
   }
