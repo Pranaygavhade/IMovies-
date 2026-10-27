@@ -433,7 +433,9 @@ const seedDatabase = async () => {
     console.log(`Shows and seat layouts ready: ${showGenRes.createdShowsCount} shows, ${showGenRes.createdSeatsCount} seats generated.`);
 
     // 6. Create sample bookings, reviews, and favorites for realism
-    const sampleShow = await Show.findOne({ status: 'active' }).populate('movie theatre');
+    const sampleShow =
+      (await Show.findOne({ status: 'active' }).sort({ showDate: -1, showTime: -1 }).populate('movie theatre')) ||
+      (await Show.findOne({ status: 'active' }).populate('movie theatre'));
     if (sampleShow) {
       const seatsToBook = await Seat.find({ show: sampleShow._id, status: 'available' }).limit(2);
       if (seatsToBook.length === 2) {

@@ -14,7 +14,11 @@ const upload = require('../middleware/upload');
 
 router.get('/', getMovies);
 router.get('/trending', getTrendingMovies);
+router.get('/featured', getTrendingMovies);
+router.get('/filters', getSearchSuggestions);
 router.get('/suggestions', getSearchSuggestions);
+router.get('/tmdb/trending', getTrendingMovies);
+router.get('/tmdb/upcoming', getMovies);
 router.get('/:id', getMovieById);
 
 router.post(

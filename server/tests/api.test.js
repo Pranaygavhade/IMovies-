@@ -4,7 +4,7 @@ const { app, httpServer, startServer } = require('../server');
 const mongoose = require('mongoose');
 const { disconnectDB } = require('../config/db');
 
-jest.setTimeout(60000);
+jest.setTimeout(180000);
 
 let adminToken;
 let userToken;

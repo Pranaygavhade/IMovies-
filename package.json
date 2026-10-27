@@ -1,17 +1,17 @@
 {
   "name": "imovies",
   "version": "1.0.0",
-  "description": "IMovies – Movie ticket booking made simple",
+  "description": "iMovies – Movie ticket booking made simple",
   "scripts": {
-    "install-all": "npm install && npm --prefix server install && npm --prefix client install",
-    "build": "npm --prefix server install && npm --prefix client install && npm --prefix client run build",
+    "install:all": "npm install && npm --prefix server install && npm --prefix frontend install",
+    "postinstall": "npm --prefix server install",
+    "build": "npm --prefix server install && npm --prefix frontend install && npm --prefix frontend run build",
     "start": "node server/server.js",
-    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix frontend run dev\"",
     "seed": "npm --prefix server run seed",
     "test": "npm --prefix server test"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "puppeteer-core": "^25.16.0"
+    "concurrently": "^8.2.2"
   }
 }

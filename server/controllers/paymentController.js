@@ -742,3 +742,26 @@ exports.rejectManualPaymentAdmin = async (req, res, next) => {
     next(error);
   }
 };
+
+
+// @desc    Get payment and booking status
+// @route   GET /api/v1/payments/status/:bookingId
+// @access  Public / Private
+exports.getPaymentStatus = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const booking = await Booking.findById(bookingId).populate('payment');
+    if (!booking) {
+      return sendError(res, 'Booking not found', 404);
+    }
+    return sendSuccess(res, {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      bookingStatus: booking.status,
+      paymentStatus: booking.payment ? booking.payment.status : 'pending',
+      booking,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
