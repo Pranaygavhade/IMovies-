@@ -1,414 +1,272 @@
-# IMovies – Movie Ticket Booking Made Simple 🎬🍿
+# iMovies — Full-Stack Cinema Discovery & Movie Ticket Booking Website
 
-[![MERN Stack](https://img.shields.io/badge/Stack-MERN-red.svg)](https://reactjs.org/)
-[![Socket.IO](https://img.shields.io/badge/Realtime-Socket.IO-black.svg)](https://socket.io/)
-[![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind_CSS_v4-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-39%20Passing-success.svg)](https://jestjs.io/)
-[![Deploy](https://img.shields.io/badge/Deploy-Single--Deploy%20Monorepo-blueviolet.svg)](render.yaml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-cyan.svg)](https://reactjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24-green.svg)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4.19-lightgrey.svg)](https://expressjs.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose%208-brightgreen.svg)](https://mongoosejs.com/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-Realtime%20Seats-black.svg)](https://socket.io/)
+[![Razorpay](https://img.shields.io/badge/Razorpay-Test%20Gateway-blue.svg)](https://razorpay.com/)
 
-**IMovies** is a complete, production-ready cinema ticket booking platform built on the modern MERN stack. Designed with a cinematic dark theme (`#0b0b12`, `#e50914`, `#d4af37`), it features live movie catalog synchronization via TMDB (with an automated curated fallback as of 22 October 2026), intelligent city auto-detection defaulting to **Bhilai, Chhattisgarh**, real multiplexes and heritage cinema halls in Bhilai and Durg, a rolling 7-day show schedule with zero overlaps, real-time seat lock synchronization, an interactive curved-screen auditorium layout, dynamic QR ticketing, a dual-mode payment gateway (Razorpay test mode + built-in zero-dependency simulated gateway), a watchlist, an audience reviews system with automatic movie rating recalculation, and an admin command center with live Recharts analytics and CSV export.
-
----
-
-## 🌟 Key Features
-
-### 📍 Live Movies, Geo-City & Real Details (Section 16)
-- **Live TMDB Catalog Sync**: Automatically queries `/movie/now_playing`, `/movie/upcoming`, and `/discover/movie` with Indian languages (`hi, te, ta, ml, kn, bn, mr, pa, en`). Daily automated cron sync + admin 1-click "Sync Movies Now" button.
-- **22 October 2026 Curated Catalog**: 18 curated films (*Drishyam 3: The Conclusion*, *Prem Keetanu*, *Udta Teer*, *Jailer 2*, *Ranabaali*, *Prahaar*, *Nayyi Navelli*, *Street Fighter*, *Tu Hai Meri Kiran*, *Kaali Kheti*, *Ramayana: Part 1*, etc.) loaded instantly when TMDB key is omitted.
-- **Intelligent City Auto-Detection**:
-  1. Browser Geolocation API reverse-geocoded to the nearest supported cinema hub
-  2. IP-based server fallback (`/api/v1/cities/detect-ip`)
-  3. Last remembered city in `localStorage`
-  4. Default: **Bhilai, Chhattisgarh**
-- **12 Supported Cinema Cities**: Bhilai, Durg, Raipur, Nagpur, Bilaspur, Mumbai, Delhi, Bengaluru, Hyderabad, Chennai, Pune, and Kolkata.
-- **Real Theatres for Bhilai & Durg**:
-  - *Bhilai*: PVR Treasure Island, Mukta A2 Cinemas, New Vasant Talkies, RLR Cinemas
-  - *Durg*: Tarun LV Cinemas, Swaroop Talkies, K Sera Sera Miniplex
-  - *Plus venues across Raipur, Nagpur, and Mumbai*.
-- **7-Day Rolling Show Generator**: Nightly 00:05 IST cron keeps the next 7 days filled with shows for every active movie across all multiplexes and single screens with zero collisions.
-- **Interactive Proximity & Directions**: Displays live distance in kilometers from the user's location and 1-click "Get Directions" Google Maps links.
-- **OCCUPANCY BADGES & SHOW STATUS**: Live occupancy chips ("Fast Filling" >70%, "Almost Full" >90%), greyed-out passed showtimes, and `Asia/Kolkata` timezone with Indian Rupee (`₹`) pricing throughout.
-
-### 🎟️ QR Entry Validation & Dual-Mode Payment Architecture (Section 5)
-- **HMAC-SHA256 Cryptographically Signed Ticket QR**:
-  - The e-ticket QR encodes a signed cryptographic token (`bookingId + showId + seats + expiry + sig`) signed with a dedicated server secret—never plain vulnerable booking text.
-  - **Single-Use Gate Enforcement**: Authenticated endpoint `GET /api/v1/tickets/verify?token=&bookingCode=` checks signature validity, ensures the booking is confirmed and paid, confirms the show has not ended, and atomically marks the ticket as `used` with timestamp and staff ID. Subsequent scans return `already_used`.
-  - **Staff Gate Scanner Portal (`/admin/scan-ticket`)**: Native camera-based QR scanner using `html5-qrcode` with live device camera switching, sound/visual verification cards, and instant manual booking code / token lookup.
-  - **Downloadable PDF Tickets**: Responsive digital pass ready for single-click high-resolution PDF download using `html2canvas` + `jspdf`.
-- **PhonePe QR (Manual Verification Mode)**:
-  - Displayed **unmodified** at `client/public/assets/phonepe-qr.jpeg` on the checkout page only (never on the ticket).
-  - Explicit merchant payee guidance: *"Pay exactly ₹X to PRANAY GAVHADE and enter your UTR/transaction ID"*.
-  - **15-Minute Seat Reservation**: Locks seats for 15 minutes while user completes payment in their PhonePe / UPI app.
-  - **Strict UTR Enforcement**: 12-digit numeric UTR validation with a database unique sparse index to prevent reuse or fraudulent claims.
-  - **Optional Screenshot Upload**: Users can attach payment screenshots for merchant verification.
-  - **Status Flow**: Sets booking to `payment_under_review`. The user is guided by a live countdown and automatic status polling.
-  - **Admin Pending Payments Ledger (`/admin/pending-payments`)**: Dedicated admin dashboard displaying amount, 12-digit UTR with 1-click copy, screenshot modal viewer, and expiration timers.
-  - **Admin Approval / Rejection Workflow**: ONLY admin approval confirms the booking, marks seats as `booked`, and generates the HMAC ticket QR. Rejection or expiry immediately cancels the booking and restores seats to `available`.
-- **Automatic Instant Verified Payments (Primary Mode)**:
-  - Supports Razorpay test mode (cards/UPI/netbanking) and built-in zero-dependency simulated gateway.
-  - Dedicated failure simulation to test declined payments with zero seat loss.
-
-### 🎬 High-Fidelity Homepage & Discovery (Section 11)
-- **Authentic Movie Metadata**: Every film displays real, verified metadata (release date, certificate `U`/`UA`/`A`, IMDb/TMDB ratings, runtimes in hours and minutes). Unverified or placeholder values are strictly hidden.
-- **Dynamic City Selection**:
-  1. Browser Geolocation API reverse-geocodes coordinates to nearest supported cinema hub.
-  2. Persistent choice in `localStorage`.
-  3. Clear visual badge: *"Default city: Bhilai"* with prominent *"Change city"* modal selector.
-- **Hero Spotlight Carousel**: 7-second auto-rotation with **smart pause on hover**, backdrops, runtime, certificate chips, and instant *"Book Tickets"* & trailer modal triggers.
-- **Real-Data Trending Row**: Transparently ranked by confirmed bookings in the last 7 days, user watchlist additions, and TMDB popularity metrics, with explicit disclosure badge.
-- **Smart Language Filters**: Dynamic counter (e.g., *"Showing 4 Hindi movies in Bhilai"*), visible *"Clear filters"* button, and empty state fallbacks.
-- **Enriched Cinema Movie Cards**:
-  - Certificate & "Now Showing" badges.
-  - Concise one-line synopsis.
-  - Available cinema count (*"Available in N cinemas"*).
-  - Next 3 clickable showtime chips linking straight to auditorium seat maps.
-  - Instant Watchlist heart toggle with toast confirmation.
-  - Real theatre amenities (Dolby Atmos 7.1, 4K Laser, Recliner Lounges, Food Court, Wheelchair Access).
-- **Live Search Autocomplete**: Instant suggestions dropdown displaying categorized matches across Movies, Cinemas, and Genres.
-- **Mobile Sticky Navigation Bar**: Responsive bottom bar on mobile viewports for quick switching between Home, Movies, Tickets, Watchlist, and Profile.
-- **Platform Footer**: Standardized branding featuring the badge: *"Engineered with love for movie lovers everywhere"* with a crimson heart.
-
-### 🎟️ Public & Audience Experience
-- **Cinematic Dark Design**: Immersive `#0b0b12` interface with crimson `#e50914` & gold `#d4af37` accents, glassmorphic panels, and backdrop blur.
-- **Hero Carousel**: Autoplay showcase of trending releases with movie details, runtime, genre chips, and YouTube trailer modals.
-- **Multi-City Multiplex Discovery**: Browse movies and showtimes across **Mumbai**, **Bengaluru**, **Delhi NCR**, and **Chennai**.
-- **Interactive Auditorium Seating**: Authentic cinema layout with curved screen indicator, aisle gaps, and tier-colored rows (**Lower**, **Middle**, **Balcony** / **Regular**, **Premium**, **Insignia Recliner**).
-- **Zero Double-Booking (Real-Time Socket.IO)**: Seats locked by another user are instantly broadcast to all connected viewers and highlighted in amber.
-- **5-Minute Reservation Timer**: Locked seats automatically release if payment is not completed within 5 minutes.
-- **Dual-Mode Payment Gateway**:
-  - **Razorpay Test Mode**: Dynamically loads official Razorpay checkout script if `RAZORPAY_KEY_ID` & `RAZORPAY_KEY_SECRET` are configured.
-  - **Built-in Simulated Gateway**: Realistic Card, UPI / QR, Netbanking, and Wallets with 0 external keys needed for complete demo.
-  - **Dedicated "Payment Failed – Retry" Screen**: Test failure cards (`4000 0000 0000 0002`), UPI failure IDs (`@fail`), and test failure switch let you test declined bank transactions and retry without losing your 5-minute reserved seats.
-- **Dynamic QR Ticket Passes**: High-fidelity digital ticket with scannable QR code generated server-side, confetti celebrations, and native print / download support.
-- **Cancellation & Smart Refunds**: Full refund automatically credited if cancelled 2+ hours before showtime; 50% within 2 hours; 0% after showtime.
-- **Watchlist (Favorites)**: 1-click heart toggle on movie cards and movie details page to save movies to personal watchlist.
-- **Audience Reviews & Ratings**: Submit 1-5 star reviews with comments; automatically updates and recalculates the movie's average rating and total rating count.
-- **User Notifications & Profile**: Live in-app notification center for booking confirmations, cancellations, and profile/password management.
-
-### 🛡️ Admin Command Center
-- **Executive Analytics**: Gross revenue counter, tickets sold, multiplex occupancy rate, and audience accounts.
-- **Visual Trends (Recharts)**: 7-day revenue trend area chart and top grossing movies.
-- **CSV Financial Export**: One-click authenticated download of the platform revenue report (`/api/v1/admin/reports/revenue-csv`).
-- **Movie Catalog Management**: Add, edit, or delete movies with poster uploads or direct image URLs.
-- **Cinema Hall & Screen Management**: Configure auditorium screen layouts and seat pricing tiers.
-- **Showtime Scheduler**: Schedule shows with automated screen collision / overlap conflict detection.
-- **Customer & Booking Ledger**: Searchable platform ledger to monitor tickets, status, and manage active/deactivated user accounts.
+A movie discovery and ticket booking platform built with **React, Vite, TypeScript, Tailwind CSS, Node.js, Express, MongoDB with 2dsphere Geospatial indexing, Socket.IO, and Razorpay**.
 
 ---
 
-## 🛠️ Tech Stack
+## 1. Key Features
 
-| Layer | Technologies |
-|---|---|
-| **Backend** | Node.js (v18+), Express.js, MongoDB / Mongoose, JWT, bcryptjs, Socket.IO, Multer, Helmet, Morgan, Compression, Express-Rate-Limit, Express-Validator, QRCode, Crypto HMAC-SHA256, Nodemailer, Node-Cron, Razorpay SDK |
-| **Frontend** | React 18 (Vite), React Router DOM v6, Redux Toolkit, Axios, Tailwind CSS v4, Bootstrap 5, Framer Motion, Recharts, Lucide React, React Toastify, HTML5-QRCode, HTML2Canvas, jsPDF, Canvas-Confetti |
-| **Testing** | Jest, Supertest (**39 automated integration tests across 10 test suites – 100% PASS**) |
-| **Deployment** | Single-Deploy Monorepo (Express serves static Vite `client/dist` with SPA fallback; configured for Render via `render.yaml`) |
-| **Tooling** | Postman Collection v2.1, Concurrently, Dotenv |
+- **Cinematic Dark UI**: Charcoal and obsidian aesthetic (`#060709`, `#0B0C10`) with restrained crimson accents (`#E50914`), smooth micro-animations, and responsive layouts across mobile, tablet, and desktop.
+- **TMDB Integration**: Valid artwork paths, high-resolution landscape hero backdrops, portrait movie cards (`aspect-[2/3]`), and graceful local SVG placeholders.
+- **Geospatial Cinema Discovery**: Browser Geolocation API ("Detect my location") combined with manual city selection (Mumbai, Bengaluru, Delhi NCR, Hyderabad, etc.), MongoDB `2dsphere` distance calculations, and proximity sorting.
+- **Real-Time Seat Map (Socket.IO)**:
+  - Curvilinear cinema screen representation.
+  - Multi-category seating: VIP (amber), Premium (sky blue), Standard (slate).
+  - Atomic seat locking with a 10-minute countdown timer.
+  - Live cross-tab/cross-user status sync (`available`, `locked`, `booked`).
+  - Automatic background recovery of abandoned/expired locks.
+- **Razorpay Test-Mode Integration**:
+  - Official Razorpay Checkout integration with cryptographic HMAC-SHA256 signature verification (`crypto.createHmac`).
+  - Server-calculated pricing (tickets, convenience fee, 18% GST). Users cannot manipulate price on frontend.
+  - Webhook listener with raw body capture.
+  - Sandbox simulation mode for local zero-credential testing.
+- **Digital Tickets & QR Verification**:
+  - Unique persistent booking reference (`IMV-YYYYMMDD-XXXX`).
+  - Base64 QR code for cinema entrance gate check-in.
+  - Print/Download ticket support (`@media print` styling).
+  - Gate verification endpoint (`/api/bookings/verify/:reference`).
+- **Protected Admin Portal**:
+  - Cinema manager with latitude/longitude coordinates and amenities.
+  - Screen builder with custom row configs and seat categories.
+  - Showtime scheduler with conflict detection (prevents overlapping shows on the same screen).
+  - Dashboard analytics: revenue, ticket volume, active multiplexes.
 
 ---
 
-## 📁 Repository Structure
+## 2. Architecture & Project Structure
 
 ```
-imovies/
-├── package.json            # Root workspace scripts (install-all, build, start, dev, seed, test)
-├── render.yaml             # Render single web service blueprint
-├── .env.example            # Root environment variable template
-├── server/
-│   ├── config/             # DB connection with auto MongoMemoryServer fallback
-│   ├── controllers/        # Auth, Movie, Theatre, Show, Seat, Booking, Payment, Ticket, Favorite, Review, Admin
-│   ├── middleware/         # JWT Auth, Role Authorizer, Multer Upload, Express-Validator, Sanitizer, Error Handler
-│   ├── models/             # User, Movie, Theatre, Show, Seat, Booking, Payment, Favorite, Review, Notification
-│   ├── routes/             # REST endpoints under /api/v1 (auth, movies, theatres, shows, bookings, payments, tickets, admin, etc.)
-│   ├── seed/               # Database seeder (1 Admin, 3 Users, 18 Curated Fallback Movies, Multiplexes, Rolling Shows)
-│   ├── services/           # paymentService, tmdbService, emailService, qrService (HMAC signing), seatLockService
-│   ├── sockets/            # Socket.IO room broadcaster for real-time seats
-│   ├── tests/              # Automated integration tests (api.test.js - 39 tests)
-│   ├── utils/              # apiResponse, logger (Winston)
-│   ├── server.js           # Server entry point + static client/dist serving
-│   └── package.json
-├── client/
-│   ├── public/
-│   │   └── assets/         # phonepe-qr.jpeg (PhonePe merchant QR)
+IMovies/
+├── backend/
 │   ├── src/
-│   │   ├── api/            # Relative Axios instance (/api/v1), relative Socket.IO connection
-│   │   ├── components/     # Navbar (Live Search), Footer, MobileBottomNav, Modals, Skeletons, Loaders
-│   │   ├── pages/          # Home, Movies, MovieDetails, SeatSelection, Payment, BookingConfirmation (PDF), MyBookings, Watchlist, Profile, AdminDashboard, AdminScanTicket, AdminPendingPayments
-│   │   ├── redux/          # Store & Slices (auth, movies, booking, notifications)
-│   │   ├── App.jsx         # App routes & toast notifications container
-│   │   ├── index.css       # Cinematic dark theme styling & custom CSS
-│   │   └── main.jsx        # React root
-│   ├── dist/               # Built static production bundle
+│   │   ├── config/          # Environment variables & MongoDB connection
+│   │   ├── controllers/     # Auth, Movies, Cinemas, Shows, Seats, Payments, Admin
+│   │   ├── middlewares/     # JWT authentication, RBAC, Zod validation, error handling
+│   │   ├── models/          # User, Movie, Cinema, Screen, Show, ShowSeat, Booking, Payment, Review
+│   │   ├── routes/          # Express API route declarations
+│   │   ├── scripts/         # Comprehensive database seeder with real TMDB data
+│   │   ├── services/        # SeatLockService (atomic locking), RazorpayService
+│   │   ├── socket/          # Socket.IO room dispatcher (show_${showId})
+│   │   ├── utils/           # JWT, ApiError, TMDB artwork helper
+│   │   ├── app.ts           # Express application setup, Helmet, CORS, Rate Limit
+│   │   └── server.ts        # Server bootstrap, Socket.IO, cleanup interval
+│   ├── tests/               # Vitest & Supertest unit/integration test suite
 │   ├── package.json
-│   └── vite.config.js      # Vite build & development proxy
-└── postman/
-    └── IMovies.postman_collection.json # Comprehensive tested Postman collection with Gate Scanner & PhonePe QR
+│   └── tsconfig.json
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/      # Navbar, Footer, HeroBanner, MovieCard, CinemaCard, SeatMap, Modals
+│   │   ├── context/         # AuthContext (JWT/user state), LocationContext (City/GPS)
+│   │   ├── pages/           # Home, Movies, MovieDetails, Cinemas, CinemaDetails, SeatSelection, Confirmation, Admin
+│   │   ├── services/        # Axios API client, Socket.IO client
+│   │   ├── types/           # TypeScript definitions
+│   │   ├── utils/           # Centralized TMDB image resolution & fallbacks
+│   │   ├── App.tsx          # React Router setup
+│   │   ├── index.css        # Tailwind directives, print styles, scrollbar
+│   │   └── main.tsx
+│   ├── package.json
+│   ├── tailwind.config.js
+│   └── vite.config.ts
+│
+├── package.json             # Root orchestrator
+└── README.md
 ```
 
 ---
 
-## 🚀 Quick Start Guide
+## 3. Quick Start & Running Locally
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18.0.0 or higher)
-- [npm](https://www.npmjs.com/) (v8.0.0 or higher)
-- *Optional*: Local MongoDB instance (If no MongoDB server is running, the server automatically starts a zero-config in-memory MongoDB instance with pre-seeded data so you can test immediately!)
+- Node.js (v18 or higher)
+- npm (v9 or higher)
 
-### 1. Install Dependencies
-Run from the root directory to install all dependencies for root, server, and client:
+### Installation
+From the root directory:
 ```bash
-npm run install-all
+# 1. Install all dependencies (root, backend, frontend)
+npm run install:all
 ```
 
-### 2. Seed Database
-Populate the database with 1 Admin, 3 Users, 13 Movies, 4 Theatres across 4 cities, 84 Shows over 7 days, and 5,040 cinema seats:
+### Seeding Initial Data
+The backend includes a high-grade seeder with real TMDB movie records, premier multiplexes (PVR INOX Palladium, INOX Forum Bengaluru, PVR Ambience Delhi), screens with categorized layouts, and scheduled shows:
 ```bash
 npm run seed
 ```
 
-### 3. Run in Development
-Start both the backend API server (port 5000) and frontend client (port 5173 with Vite proxy) concurrently:
+Default credentials seeded:
+- **Admin**: `admin@imovies.com` / `Admin@123456`
+- **Customer**: `john@example.com` / `User@123456`
+
+### Running Development Servers
+Run both backend (`http://localhost:5000`) and frontend (`http://localhost:5173`) concurrently:
 ```bash
 npm run dev
 ```
-- **Client UI**: [http://localhost:5173](http://localhost:5173)
-- **Backend API**: [http://localhost:5000/api/v1](http://localhost:5000/api/v1)
-- **Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
 
-### 4. Run in Production (Single-Deploy Monorepo)
-Compile the client and start the production server on port 5000:
+Or run individually:
 ```bash
-npm run build
-npm start
+# Backend (Port 5000)
+cd backend && npm run dev
+
+# Frontend (Port 5173)
+cd frontend && npm run dev
 ```
-Now visit [http://localhost:5000](http://localhost:5000) — the Node.js server serves the static React application, the API, and Socket.IO on the same single port!
 
 ---
 
-## 🔑 Default Credentials
+## 4. Running Tests & Verifications
 
-| Role | Email | Password | Permissions |
-|---|---|---|---|
-| **Admin Director** | `admin@imovies.com` | `Admin@123` | Full access to Admin Portal, Movies, Shows, Theatres, Ledger, CSV Reports |
-| **Audience User** | `john@example.com` | `User@123` | Book tickets, real-time seats, QR passes, cancel bookings, watchlist, reviews |
-| **Audience User** | `sarah@example.com` | `User@123` | Book tickets, personal profile, reviews |
-| **Audience User** | `alex@example.com` | `User@123` | Book tickets, personal profile |
-
-> **Tip**: The login page includes convenient **1-Click Demo Login** buttons to sign in instantly with either Admin or User credentials!
-
----
-
-## 💳 Dual-Mode Payment System
-
-IMovies dynamically selects the payment gateway based on your environment:
-
-1. **Razorpay Test Mode**:
-   - Active when `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are set in `.env`.
-   - Generates official Razorpay orders, opens the Razorpay modal, and verifies signatures using HMAC SHA256.
-2. **Built-in Simulated Gateway**:
-   - Active when Razorpay keys are omitted.
-   - Requires **ZERO external keys** — works 100% out of the box!
-   - Provides realistic Card, UPI, Netbanking, and Wallet checkout forms.
-   - **Test Card Presets**:
-     - Success Card: `4111 1111 1111 1111` (Expires 12/28, CVV 999)
-     - Failure Card: `4000 0000 0000 0002` (Triggers bank-declined transaction)
-   - **Test UPI Presets**:
-     - Success UPI: `john@okhdfcbank`
-     - Failure UPI: `customer@fail`
-   - **Dedicated "Payment Failed – Retry" Screen**:
-     - Shows transaction failure reason while preserving the 5-minute reserved seats countdown.
-     - One-click "Retry Payment Now" resets the checkout form so the user can fix details without re-selecting seats.
-
----
-
-## 📡 REST API Reference (`/api/v1`)
-
-### Authentication (`/auth`)
-- `POST /auth/register` – Register new user
-- `POST /auth/login` – Login & receive JWT Bearer token
-- `GET /auth/me` – Get authenticated user profile (`Bearer Token`)
-- `PUT /auth/profile` – Update name, phone, or avatar
-- `PUT /auth/change-password` – Update password
-
-### Movies (`/movies`)
-- `GET /movies` – Paginated list with search, filter (genre, language, city, status), and sorting
-- `GET /movies/trending` – Transparently ranked by 7-day bookings, watchlist additions & TMDB score
-- `GET /movies/suggestions?q=` – Autocomplete search suggestions for movies, cinemas, and genres
-- `GET /movies/:id` – Single movie details, trailer, and available screening dates
-- `POST /movies` – Create movie (`Admin`)
-- `PUT /movies/:id` – Update movie (`Admin`)
-- `DELETE /movies/:id` – Delete movie & cancel associated shows (`Admin`)
-
-### Cities & Geolocation (`/cities`)
-- `GET /cities` – List all 12 supported cinema cities with default `Bhilai`
-- `GET /cities/nearest?lat=&lng=` – Nearest supported city via Haversine reverse-geocoding
-- `GET /cities/detect-ip` – IP-based fallback city detection
-
-### Theatres (`/theatres`)
-- `GET /theatres` – List theatres (optional `?city=Bhilai`)
-- `GET /theatres/cities` – List distinct cinema hub cities
-- `GET /theatres/:id` – Single theatre details with screens & amenities
-- `POST /theatres` – Create theatre (`Admin`)
-- `PUT /theatres/:id` – Update theatre (`Admin`)
-- `DELETE /theatres/:id` – Delete theatre (`Admin`)
-
-### Shows & Real-time Seats (`/shows`)
-- `GET /shows?movie=&date=&city=` – Filter scheduled showtimes
-- `GET /shows/:id` – Get show details with real-time seat availability map
-- `POST /shows/:id/lock-seats` – Lock seats for 5 minutes (`Bearer Token`)
-- `POST /shows/:id/release-seats` – Release user's locked seats (`Bearer Token`)
-- `POST /shows` – Schedule show with screen overlap collision validation (`Admin`)
-- `DELETE /shows/:id` – Delete show and purge generated seats (`Admin`)
-
-### Bookings & Payments (`/bookings` & `/payments`)
-- `POST /bookings` – Create pending reservation with server-calculated total
-- `GET /bookings/my` – Retrieve user's upcoming and past booking history
-- `GET /bookings/:id` – Single booking details with scannable QR ticket pass
-- `PUT /bookings/:id/cancel` – Cancel booking (Applies 2-hour refund rule: 100% >2h, 50% <2h, 0% after show)
-- `POST /payments/initiate` – Create gateway order (Razorpay order ID or simulated order ID)
-- `POST /payments/verify` – Idempotent verification, generates QR code, updates seats to booked, sends email receipt
-- `POST /payments/webhook` – Raw-body HMAC verified Razorpay webhook
-- `POST /payments/submit-manual-qr` – Submit PhonePe QR 12-digit UTR + screenshot for manual review (15-min seat lock)
-
-### Tickets & Entry Gate Verification (`/tickets`)
-- `GET /tickets/verify?token=&bookingCode=` – Cryptographically verify HMAC-signed ticket token, enforce single-use entry, and return gate validation status (`Admin / Staff`)
-
-### Watchlist / Favorites (`/favorites`)
-- `GET /favorites` – Get current user's saved movies
-- `GET /favorites/check/:movieId` – Check if movie is in user's watchlist
-- `POST /favorites/:movieId` – Add movie to watchlist
-- `DELETE /favorites/:movieId` – Remove movie from watchlist
-
-### Reviews & Ratings (`/reviews`)
-- `GET /reviews/movie/:movieId` – Get approved reviews for a movie
-- `POST /reviews/:movieId` – Submit or update a 1-5 star review and comment (auto-recalculates movie average rating)
-- `DELETE /reviews/:id` – Delete review
-
-### Admin Command Center (`/admin`)
-- `GET /admin/stats` – Revenue metrics, 7-day trend, top movies, multiplex occupancy rate
-- `GET /admin/reports/revenue-csv` – Streamed CSV financial ledger download
-- `GET /admin/users` – Paginated audience user accounts
-- `GET /admin/sync/movies` – Trigger live TMDB catalog sync or curated fallback (`Admin`)
-- `POST /admin/generate-shows` – Trigger rolling 7-day show schedule generation (`Admin`)
-- `PUT /admin/users/:id/toggle-status` – Suspend / activate user account
-- `GET /admin/bookings` – Searchable platform bookings ledger
-- `GET /admin/pending-payments` – View all pending manual PhonePe QR submissions with UTR and screenshot
-- `POST /admin/payments/:bookingId/approve` – Approve manual PhonePe payment, confirm seats, generate HMAC ticket QR
-- `POST /admin/payments/:bookingId/reject` – Reject manual PhonePe payment, release seats, and notify customer
-
-### Notifications (`/notifications`)
-- `GET /notifications` – User notifications and unread counter
-- `PUT /notifications/:id/read` – Mark notification as read
-- `PUT /notifications/read-all` – Mark all notifications as read
-
----
-
-## 🧪 Automated Testing
-
-The backend includes a comprehensive Jest + Supertest integration suite with **39 automated tests** covering all 10 core system domains:
-
+Execute the backend automated test suite:
 ```bash
 npm test
+# or
+cd backend && npx vitest run
 ```
 
-### Test Suite Execution:
-```
-PASS tests/api.test.js (55.9 s)
-  1. Authentication & Security Workflow
-    √ should register a new user successfully
-    √ should reject registration with duplicate email
-    √ should reject login with wrong password
-    √ should retrieve current user profile with valid token
-    √ should reject unauthorized access without token
-  2. Movies & Search/Filter APIs
-    √ should retrieve paginated movies list
-    √ should search movies by title
-    √ should filter movies by genre
-  3. Shows & Real-time Seat Availability
-    √ should get show details and seat layout
-    √ should lock seats for 5 minutes
-    √ should prevent double-locking the same seats by another user (409 Conflict)
-  4. Complete End-to-End Booking & Payment Lifecycle
-    √ should create a pending booking for the locked seats with server-calculated amount
-    √ should initiate payment order and return gateway details
-    √ should reject payment verification if signature / token is tampered
-    √ should verify payment, confirm booking, generate QR code, and mark seats as booked
-    √ should handle idempotent payment verification without errors or double-booking
-    √ should fetch user bookings history including confirmed booking
-    √ should cancel booking and process refund according to rules
-  5. Watchlist (Favorites) & Reviews
-    √ should add a movie to user watchlist
-    √ should list user favorites
-    √ should create a review and recalculate movie average rating
-  6. Role-Based Access Control & Admin Features
-    √ should forbid regular users from accessing admin statistics (403 Forbidden)
-    √ should allow admin user to access admin statistics
-    √ should export revenue report CSV for admin
-  7. Section 16 - Geolocation & Live Indian Cinema Cities
-    √ should list supported cities including Bhilai as default
-    √ should reverse-geocode Bhilai coordinates to Bhilai
-    √ should reverse-geocode Durg coordinates to Durg
-    √ should return client IP detected city
-    √ should retrieve theatres in Bhilai with real multiplexes
-  8. Section 16 - TMDB Live Sync & Rolling Shows
-    √ should trigger TMDB sync or curated fallback successfully
-    √ should trigger 7-day rolling show generation
-  9. Section 5 - QR Codes & Gate Entry Verification
-    √ should reject gate verification without admin/staff authorization
-    √ should verify valid HMAC-signed ticket QR and mark ticket as used (single use)
-    √ should return state already_used on second entry attempt
-    √ should reject verification with tampered HMAC signature
-  10. Section 5 - PhonePe QR Manual Verification Flow
-    √ should submit manual PhonePe payment with 12-digit UTR and set status to payment_under_review
-    √ should reject duplicate UTR submission
-    √ should list pending manual payments for admin
-    √ should allow admin to approve manual payment and confirm booking with HMAC ticket QR
-    √ should allow admin to reject manual payment and release seats to available
+### Verified Test Results (22 Passing Tests):
+- ✅ TMDB artwork URL formatting with exact image size parameters (`w500`, `w1280`, `original`)
+- ✅ Graceful local SVG fallback for missing poster/backdrop artwork
+- ✅ User registration with bcrypt password hashing and JWT token issuance
+- ✅ Role-Based Access Control: non-admins blocked with 403 on `/api/admin/*`
+- ✅ Cinema geospatial distance calculation and sorting by proximity to user coordinates
+- ✅ Filtering cinemas by city
+- ✅ Admin Screen creation with categorized seat layouts (VIP, Premium, Standard)
+- ✅ Movie synchronization and Showtime creation
+- ✅ **Showtime Overlap Prevention**: 409 conflict when scheduling overlapping shows on the same screen
+- ✅ **Atomic Seat Locking**: Prevents double-booking race conditions
+- ✅ Rejection of concurrent lock attempts by another customer on the same seat
+- ✅ Automatic recovery and release of expired seat locks
+- ✅ Server-side price calculation (subtotal, convenience fee, GST)
+- ✅ Razorpay order creation
+- ✅ Cryptographic HMAC-SHA256 signature verification rejection on bogus signatures
+- ✅ Payment failure seat release
+- ✅ Payment success confirmation, ticket generation, and entrance QR code issuance
+- ✅ Customer upcoming and past booking history retrieval
+- ✅ Ticket verification at cinema check-in endpoint
 
-Test Suites: 1 passed, 1 total
-Tests:       39 passed, 39 total (100% PASS)
+---
+
+## 5. Configuration & Environment Variables
+
+### Backend Configuration (`backend/.env`)
+
+```env
+PORT=5000
+NODE_ENV=development
+
+# MongoDB Connection String (Local MongoDB or MongoDB Atlas)
+# Note: If no external MongoDB instance is running, an in-memory instance is automatically spawned for development.
+MONGODB_URI=mongodb://localhost:27017/imovies
+
+# Authentication
+JWT_SECRET=super_secret_imovies_jwt_token_key_change_in_production_2026
+JWT_EXPIRES_IN=7d
+
+# TMDB API Credentials
+# Get a free API key from https://www.themoviedb.org/settings/api
+TMDB_API_KEY=your_tmdb_api_key_here
+
+# Razorpay Test Mode Credentials
+# Get test keys from https://dashboard.razorpay.com/app/keys
+RAZORPAY_KEY_ID=rzp_test_your_key_id_here
+RAZORPAY_KEY_SECRET=your_razorpay_secret_here
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret_here
+PAYMENT_CURRENCY=INR
+
+# Frontend URL for CORS
+CLIENT_URL=http://localhost:5173
+```
+
+### Frontend Configuration (`frontend/.env`)
+
+```env
+# Leave empty if using Vite dev proxy to localhost:5000
+VITE_API_BASE_URL=
+VITE_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
+VITE_RAZORPAY_KEY_ID=rzp_test_your_key_id_here
 ```
 
 ---
 
-## 🌐 Production Deployment (Render)
+## 6. How to Configure External Services
 
-This repository is structured as a **Single-Deploy Monorepo**. A single web service builds the client and serves both the React frontend and Express backend from one process.
+### A. The Movie Database (TMDB) Setup
+1. Register for a free account at [themoviedb.org](https://www.themoviedb.org/).
+2. Navigate to **Settings > API** (`https://www.themoviedb.org/settings/api`).
+3. Request an API key (Developer / Personal use).
+4. Copy the **API Key (v3 auth)** into `backend/.env` under `TMDB_API_KEY`.
+*(Note: If omitted, the application uses its built-in database of real TMDB titles, IDs, and official artwork paths.)*
 
-Included `render.yaml`:
-```yaml
-services:
-  - type: web
-    name: imovies-cinema-platform
-    env: node
-    plan: free
-    buildCommand: npm run build
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-      - key: JWT_SECRET
-        generateValue: true
-      - key: MONGO_URI
-        sync: false # Set your MongoDB Atlas URI in Render dashboard
-```
+### B. MongoDB Atlas Setup
+1. Create a free account at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas).
+2. Create a free M0 cluster.
+3. Under **Database Access**, create a user with read/write privileges.
+4. Under **Network Access**, add `0.0.0.0/0` (allow from anywhere) or your hosting IP.
+5. Click **Connect > Drivers (Node.js)** and copy the connection string:
+   `mongodb+srv://<username>:<password>@cluster0.mongodb.net/imovies?retryWrites=true&w=majority`
+6. Paste into `backend/.env` under `MONGODB_URI`.
 
-1. Push your repository to GitHub.
-2. In [Render](https://render.com), click **New +** > **Blueprint** and select your repository (or create a **Web Service** with Build Command: `npm run build` and Start Command: `npm start`).
-3. Set your `MONGO_URI` environment variable.
-4. Your platform will be live at `https://your-service.onrender.com`!
+### C. Razorpay Test Mode Setup
+1. Sign up at [dashboard.razorpay.com](https://dashboard.razorpay.com/).
+2. Toggle the dashboard switch to **Test Mode**.
+3. Navigate to **Account & Settings > API Keys > Generate Key**.
+4. Copy `Key Id` (`rzp_test_...`) and `Key Secret`.
+5. Paste into `backend/.env` under `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
+6. Add the public `RAZORPAY_KEY_ID` into `frontend/.env` under `VITE_RAZORPAY_KEY_ID`.
+7. Test cards provided by Razorpay (e.g. Card: `4111 1111 1111 1111`, CVV: `123`, any future expiry, OTP: `123456`).
 
 ---
 
-## 📮 Postman Collection
+## 7. How to Create Screens & Shows through Admin Portal
 
-Import `postman/IMovies.postman_collection.json` into Postman to explore and test all API routes. The collection includes pre-configured collection variables (`baseUrl`, `authToken`, `adminToken`) with automated token extraction on login.
+1. Log in with admin credentials (`admin@imovies.com` / `Admin@123456`).
+2. Click **Admin Portal** in the navigation header (or navigate to `/admin`).
+3. **Add a Multiplex**:
+   - Go to the **Add Multiplex** tab.
+   - Enter name (e.g., `PVR ICON: Nexus Mall`), locality (`Koramangala`), city (`Bengaluru`), and coordinates (`12.9352`, `77.6245`).
+   - Click **Create Cinema**.
+4. **Schedule a Showtime**:
+   - Go to the **Schedule Showtime** tab.
+   - Select Movie, Cinema, Screen, and Format (2D/IMAX).
+   - Set the date and start time.
+   - Set pricing for categories: Standard (e.g. `₹250`), Premium (`₹400`), VIP (`₹600`).
+   - Click **Create Showtime & Generate Seat Inventory**.
+   - The system automatically validates against overlapping schedules on that screen and generates physical seat records for that showtime.
 
 ---
 
-## 📄 License
-MIT License. Built for cinema lovers and theatre multiplex operators worldwide.
+## 8. Deployment Guide
+
+### Frontend Deployment (Vercel / Netlify)
+1. Push repository to GitHub.
+2. In Vercel or Netlify, import the repository and set:
+   - Root directory: `frontend`
+   - Build command: `npm run build`
+   - Output directory: `dist`
+3. Environment variables:
+   - `VITE_API_BASE_URL`: URL of your deployed backend (e.g. `https://imovies-api.onrender.com`)
+   - `VITE_RAZORPAY_KEY_ID`: `rzp_test_...`
+
+### Backend Deployment (Render / Railway)
+1. In Render, create a new **Web Service** connected to your repository:
+   - Root directory: `backend`
+   - Build command: `npm install && npm run build`
+   - Start command: `npm start`
+2. Environment variables:
+   - `NODE_ENV`: `production`
+   - `MONGODB_URI`: Your MongoDB Atlas connection URI
+   - `JWT_SECRET`: A secure 32+ character random secret
+   - `CLIENT_URL`: Your deployed frontend URL (e.g. `https://imovies.vercel.app`)
+   - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`
+   - `TMDB_API_KEY`: Your TMDB API key
+#   I M o v i e s -  
+ 
